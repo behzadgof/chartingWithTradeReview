@@ -1,0 +1,1011 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="dark">
+<title>Asset Charts</title>
+<script>{{LIB_JS}}</script>
+<style>
+{{SHARED_CSS}}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0d1117; color: #c9d1d9; display: flex; height: 100vh; overflow: hidden; }
+
+/* Sidebar */
+#sidebar { width: 200px; min-width: 200px; background: #161b22; border-right: 1px solid #30363d; display: flex; flex-direction: column; overflow: hidden; }
+#sidebar-header { padding: 14px 16px 10px; border-bottom: 1px solid #30363d; }
+#sidebar-header h1 { font-size: 15px; color: #58a6ff; }
+#search-wrap { padding: 8px 10px; border-bottom: 1px solid #30363d; }
+#sym-search { width: 100%; background: #0d1117; border: 1px solid #30363d; color: #c9d1d9; padding: 6px 10px; border-radius: 6px; font-size: 12px; outline: none; }
+#sym-search:focus { border-color: #58a6ff; }
+#sym-search::placeholder { color: #484f58; }
+#symbol-list { flex: 1; overflow-y: auto; }
+.sym-item { padding: 9px 16px; cursor: pointer; font-size: 13px; font-weight: 600; color: #8b949e; border-left: 3px solid transparent; transition: background 0.1s; }
+.sym-item:hover { background: #21262d; color: #c9d1d9; }
+.sym-item.active { background: #0d2240; border-left-color: #58a6ff; color: #58a6ff; }
+
+/* Main content */
+#main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+/* Toolbar */
+#toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 6px 12px; border-bottom: 1px solid #30363d; background: #161b22; flex-shrink: 0; font-size: 11px; }
+#toolbar .sep { width: 1px; height: 16px; background: #30363d; margin: 0 4px; }
+.tb-label { color: #8b949e; font-size: 11px; margin: 0 2px; }
+#toolbar input[type="date"] { background: #21262d; color: #c9d1d9; border: 1px solid #30363d; border-radius: 4px; padding: 3px 6px; font-size: 11px; outline: none; color-scheme: dark; }
+#toolbar input[type="date"]:focus { border-color: #58a6ff; }
+#toolbar select { background: #21262d; color: #c9d1d9; border: 1px solid #30363d; border-radius: 4px; padding: 3px 6px; font-size: 11px; cursor: pointer; }
+.period-btns { display: flex; gap: 2px; }
+.period-btn { background: #21262d; color: #8b949e; border: 1px solid #30363d; border-radius: 4px; padding: 3px 7px; font-size: 10px; cursor: pointer; font-weight: 600; transition: all 0.1s; }
+.period-btn:hover { background: #30363d; color: #c9d1d9; }
+.period-btn.active { background: #0d2240; color: #58a6ff; border-color: #58a6ff; }
+
+/* Charts area */
+#charts-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-height: 0; }
+#panels-grid { flex: 1; min-height: 0; display: grid; gap: 2px; }
+#panels-grid.layout-1 { grid-template: 1fr / 1fr; }
+#panels-grid.layout-2h { grid-template: 1fr / 1fr 1fr; }
+#panels-grid.layout-2v { grid-template: 1fr 1fr / 1fr; }
+#panels-grid.layout-3t { grid-template: 1fr 1fr / 1fr 1fr; }
+#panels-grid.layout-3t .chart-panel:nth-child(1) { grid-column: 1 / 3; }
+#panels-grid.layout-3b { grid-template: 1fr 1fr / 1fr 1fr; }
+#panels-grid.layout-3b .chart-panel:nth-child(3) { grid-column: 1 / 3; }
+#panels-grid.layout-3l { grid-template: 1fr 1fr / 1fr 1fr; }
+#panels-grid.layout-3l .chart-panel:nth-child(1) { grid-row: 1 / 3; }
+#panels-grid.layout-3r { grid-template: 1fr 1fr / 1fr 1fr; }
+#panels-grid.layout-3r .chart-panel:nth-child(3) { grid-row: 1 / 3; }
+#panels-grid.layout-4 { grid-template: 1fr 1fr / 1fr 1fr; }
+.chart-panel { display: flex; flex-direction: column; background: #0d1117; border: 2px solid #21262d; overflow: hidden; position: relative; min-height: 0; min-width: 0; }
+.chart-panel.active { border-color: #58a6ff; }
+.chart-panel .panel-header { display: flex; align-items: center; gap: 6px; padding: 3px 8px; background: #161b22; border-bottom: 1px solid #30363d; flex-shrink: 0; font-size: 11px; cursor: pointer; user-select: none; }
+.chart-panel .panel-symbol { font-weight: 600; color: #e6edf3; min-width: 30px; }
+.chart-panel .panel-dot { color: #484f58; font-size: 10px; }
+.chart-panel .panel-tf { font-size: 10px; color: #8b949e; }
+.chart-panel .panel-chart { flex: 1; min-height: 0; position: relative; }
+.panel-empty { display: flex; align-items: center; justify-content: center; height: 100%; color: #484f58; font-size: 13px; }
+.panel-loading { display: none; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(13,17,23,0.85); z-index: 50; align-items: center; justify-content: center; color: #8b949e; font-size: 13px; flex-direction: column; gap: 8px; }
+.panel-loading.show { display: flex; }
+.spinner { width: 24px; height: 24px; border: 3px solid #30363d; border-top-color: #58a6ff; border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+/* Sync settings popup */
+.sync-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid #21262d; }
+.sync-row:last-child { border-bottom: none; }
+.sync-label { flex: 1; display: flex; align-items: center; gap: 6px; color: #c9d1d9; font-size: 12px; }
+.sync-label .sync-info { width: 14px; height: 14px; border-radius: 50%; border: 1px solid #484f58; color: #484f58; font-size: 9px; display: inline-flex; align-items: center; justify-content: center; cursor: help; }
+.sync-toggle { position: relative; width: 34px; height: 18px; cursor: pointer; flex-shrink: 0; }
+.sync-toggle input { opacity: 0; width: 0; height: 0; }
+.sync-toggle .slider { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: #30363d; border-radius: 9px; transition: background 0.2s; }
+.sync-toggle .slider::before { content: ''; position: absolute; width: 14px; height: 14px; left: 2px; bottom: 2px; background: #8b949e; border-radius: 50%; transition: transform 0.2s, background 0.2s; }
+.sync-toggle input:checked + .slider { background: #1f6feb; }
+.sync-toggle input:checked + .slider::before { transform: translateX(16px); background: #fff; }
+/* Go-to-now button */
+.go-now-btn { position: absolute; bottom: 30px; right: 10px; z-index: 30; width: 30px; height: 30px; border-radius: 6px; background: #21262d; border: 1px solid #484f58; color: #c9d1d9; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
+.go-now-btn:hover { background: #1f6feb; color: #fff; border-color: #1f6feb; }
+.go-now-btn svg { display: block; }
+/* Sync gear button */
+.sync-gear-btn { background: #21262d; border: 1px solid #30363d; border-radius: 4px; padding: 2px 6px; cursor: pointer; color: #8b949e; font-size: 13px; transition: all 0.1s; display: flex; align-items: center; }
+.sync-gear-btn:hover { background: #30363d; color: #c9d1d9; }
+/* TF combo input */
+.tf-input { width: 52px; background: #21262d; color: #c9d1d9; border: 1px solid #30363d; border-radius: 4px; padding: 3px 6px; font-size: 11px; outline: none; text-align: center; }
+.tf-input:focus { border-color: #58a6ff; }
+.tf-input::-webkit-calendar-picker-indicator { display: none; }
+</style>
+</head>
+<body>
+
+<div id="sidebar">
+  <div id="sidebar-header"><h1>Asset Charts</h1></div>
+  <div id="search-wrap"><input type="text" id="sym-search" placeholder="Search symbols..." oninput="filterSymbols()"></div>
+  <div id="symbol-list"></div>
+</div>
+
+<div id="main">
+  <div id="toolbar">
+    <input type="date" id="dt-start">
+    <span class="tb-label">to</span>
+    <input type="date" id="dt-end">
+    <div class="sep"></div>
+    <div class="period-btns">
+      <button class="period-btn" onclick="setPeriod('1D')">1D</button>
+      <button class="period-btn active" onclick="setPeriod('5D')">5D</button>
+      <button class="period-btn" onclick="setPeriod('1M')">1M</button>
+      <button class="period-btn" onclick="setPeriod('3M')">3M</button>
+      <button class="period-btn" onclick="setPeriod('6M')">6M</button>
+      <button class="period-btn" onclick="setPeriod('1Y')">1Y</button>
+      <button class="period-btn" onclick="setPeriod('YTD')">YTD</button>
+      <button class="period-btn" onclick="setPeriod('ALL')">ALL</button>
+    </div>
+    <div class="sep"></div>
+    <select id="layout-select" onchange="setLayout(this.value)">
+      <option value="1" selected>Single</option>
+      <option value="2h">2 Side by Side</option>
+      <option value="2v">2 Stacked</option>
+      <option value="3t">1 Top + 2 Bottom</option>
+      <option value="3b">2 Top + 1 Bottom</option>
+      <option value="3l">1 Left + 2 Right</option>
+      <option value="3r">2 Left + 1 Right</option>
+      <option value="4">2x2 Grid</option>
+    </select>
+    <button class="sync-gear-btn" onclick="openSyncSettings(event)" title="Panel Sync Settings">&#9881;</button>
+    <div class="sep"></div>
+    <input type="text" id="tf-input" class="tf-input" list="tf-list" value="5min" onchange="onTFChange()" onkeydown="if(event.key==='Enter'){onTFChange();event.preventDefault();}">
+    <datalist id="tf-list">
+      <option value="1min">
+      <option value="2min">
+      <option value="3min">
+      <option value="5min">
+      <option value="10min">
+      <option value="15min">
+      <option value="30min">
+      <option value="1hour">
+      <option value="2hour">
+      <option value="4hour">
+      <option value="1day">
+    </datalist>
+    <div class="sep"></div>
+    <span class="tgl-item"><input type="checkbox" id="tgl-vol" checked onchange="rerender()"><span class="tgl-name">Vol</span></span>
+    <span class="tgl-item" id="ov-vwap"><input type="checkbox" id="tgl-vwap" checked onchange="rerender()"><span class="tgl-swatch" id="sw-vwap"></span><span class="tgl-name">VWAP</span><span class="tgl-gear" onclick="openOverlaySettings('vwap',event)">&#9881;</span></span>
+    <span class="tgl-item" id="ov-lc"><input type="checkbox" id="tgl-lc" onchange="rerender()"><span class="tgl-swatch" id="sw-lc"></span><span class="tgl-name">LC</span><span class="tgl-gear" onclick="openLCSettings(event)">&#9881;</span></span>
+    <div class="sep"></div>
+    <select id="add-osc"><option value="">+ Indicator...</option><option value="MA">Moving Average</option><option value="RSI">RSI</option><option value="CCI">CCI</option><option value="ADX">ADX</option><option value="WaveTrend">WaveTrend</option><option value="MACD">MACD</option><option value="Stochastic">Stochastic</option></select>
+    <div id="ma-tags"></div>
+    <div id="osc-tags"></div>
+  </div>
+
+  <div id="charts-area">
+    <div id="panels-grid" class="layout-1"></div>
+  </div>
+</div>
+
+<div id="settings-popup"></div>
+
+<script>
+{{SHARED_INDICATORS_JS}}
+
+// ============================================================================
+// STATE
+// ============================================================================
+var allSymbols = [];
+var panels = [], activePanel = 0, currentLayout = '1';
+var oscillators = [], oscCharts = [], syncing = false, crosshairSyncing = false;
+var OSC_COLORS = ['#e6c07b','#61afef','#c678dd','#56b6c2','#e06c75','#98c379'];
+var oscColorIdx = 0;
+var OSC_DEFAULTS = {
+  RSI:{period:14}, CCI:{period:20}, ADX:{period:14},
+  WaveTrend:{period:10,period2:21,color2:'#f85149'},
+  MACD:{period:12,period2:26,color2:'#f85149'},
+  Stochastic:{period:14,period2:3,color2:'#f85149'}
+};
+var OV = {
+  vwap: {color:'#ff9800', lineStyle:0, lineWidth:2},
+  lc:   {color:'#00bcd4', lineStyle:0, lineWidth:2, neighbors:8, maxBarsBack:2000, useVolFilter:true, useRegimeFilter:true, useADXFilter:false, regimeThreshold:-0.1, adxThreshold:20, kernelLookback:8, kernelRelWeight:8, kernelStartBar:25},
+};
+var maOverlays = [];
+var MA_TYPES = ['SMA','EMA','WMA','DEMA','TEMA','HMA'];
+var MA_COLORS = ['#ff6b9d','#c792ea','#e5c07b','#56b6c2','#98c379','#61afef'];
+var maColorIdx = 0;
+var activePeriod = '5D';
+var SYNC = { symbol: true, interval: false, crosshair: true, time: false, dateRange: false };
+
+function tgl(id){return document.getElementById(id).checked;}
+function updateSwatches(){Object.keys(OV).forEach(function(k){var sw=document.getElementById('sw-'+k);if(sw)sw.style.background=OV[k].color;});renderMATags();}
+
+// ============================================================================
+// LINE STYLE SVG ICONS
+// ============================================================================
+var STYLE_SVGS = [
+  '<svg width="28" height="12"><line x1="2" y1="6" x2="26" y2="6" stroke="currentColor" stroke-width="2"/></svg>',
+  '<svg width="28" height="12"><line x1="2" y1="6" x2="26" y2="6" stroke="currentColor" stroke-width="2" stroke-dasharray="2,3"/></svg>',
+  '<svg width="28" height="12"><line x1="2" y1="6" x2="26" y2="6" stroke="currentColor" stroke-width="2" stroke-dasharray="6,4"/></svg>',
+  '<svg width="28" height="12"><line x1="2" y1="6" x2="26" y2="6" stroke="currentColor" stroke-width="2" stroke-dasharray="10,4"/></svg>',
+  '<svg width="28" height="12"><line x1="2" y1="6" x2="26" y2="6" stroke="currentColor" stroke-width="2" stroke-dasharray="2,6"/></svg>',
+];
+var STYLE_LABELS = ['Solid','Dotted','Dashed','Long Dash','Sparse Dot'];
+var WIDTH_SVGS = [
+  '<svg width="22" height="14"><line x1="2" y1="7" x2="20" y2="7" stroke="currentColor" stroke-width="1"/></svg>',
+  '<svg width="22" height="14"><line x1="2" y1="7" x2="20" y2="7" stroke="currentColor" stroke-width="2"/></svg>',
+  '<svg width="22" height="14"><line x1="2" y1="7" x2="20" y2="7" stroke="currentColor" stroke-width="3"/></svg>',
+  '<svg width="22" height="14"><line x1="2" y1="7" x2="20" y2="7" stroke="currentColor" stroke-width="4"/></svg>',
+];
+
+// ============================================================================
+// SETTINGS POPUP
+// ============================================================================
+var popupTarget = null;
+
+function openOscSettings(idx, evt) {
+  evt.stopPropagation();
+  popupTarget = {type:'osc', idx:idx};
+  renderPopup(oscillators[idx].type + ' Settings', oscillators[idx], evt);
+}
+function openOverlaySettings(key, evt) {
+  evt.stopPropagation();
+  popupTarget = {type:'overlay', key:key};
+  var names = {vwap:'VWAP'};
+  renderPopup((names[key]||key) + ' Settings', OV[key], evt);
+}
+function openLCSettings(evt) {
+  evt.stopPropagation();
+  popupTarget = {type:'lc'};
+  var s = OV.lc;
+  var popup = document.getElementById('settings-popup');
+  var html = '<div class="sp-header"><span class="sp-title">Lorentzian Classification</span><span class="sp-close" onclick="closeSettings()">&times;</span></div>';
+  html += '<div class="sp-section"><div class="sp-section-title">KNN</div>';
+  html += '<div class="sp-row"><span class="sp-label">K</span><input type="number" class="sp-num" value="'+s.neighbors+'" min="1" max="100" onchange="OV.lc.neighbors=+this.value;rerender()"></div>';
+  html += '<div class="sp-row"><span class="sp-label">Max Bars</span><input type="number" class="sp-num" value="'+s.maxBarsBack+'" min="100" max="5000" style="width:60px" onchange="OV.lc.maxBarsBack=+this.value;rerender()"></div>';
+  html += '</div>';
+  html += '<div class="sp-section"><div class="sp-section-title">Filters</div>';
+  html += '<div class="sp-row"><label style="display:flex;align-items:center;gap:4px;cursor:pointer;color:#c9d1d9;font-size:11px"><input type="checkbox" '+(s.useVolFilter?'checked':'')+' onchange="OV.lc.useVolFilter=this.checked;rerender()" style="accent-color:#58a6ff">Volatility</label></div>';
+  html += '<div class="sp-row"><label style="display:flex;align-items:center;gap:4px;cursor:pointer;color:#c9d1d9;font-size:11px"><input type="checkbox" '+(s.useRegimeFilter?'checked':'')+' onchange="OV.lc.useRegimeFilter=this.checked;rerender()" style="accent-color:#58a6ff">Regime</label></div>';
+  html += '<div class="sp-row"><label style="display:flex;align-items:center;gap:4px;cursor:pointer;color:#c9d1d9;font-size:11px"><input type="checkbox" '+(s.useADXFilter?'checked':'')+' onchange="OV.lc.useADXFilter=this.checked;rerender()" style="accent-color:#58a6ff">ADX &gt; <input type="number" class="sp-num" value="'+s.adxThreshold+'" min="1" max="100" style="width:40px;margin-left:4px" onchange="OV.lc.adxThreshold=+this.value;rerender()" onclick="event.stopPropagation()"></label></div>';
+  html += '</div>';
+  html += '<div class="sp-section"><div class="sp-section-title">Kernel Regression</div>';
+  html += '<div class="sp-row"><span class="sp-label">Lookback</span><input type="number" class="sp-num" value="'+s.kernelLookback+'" min="1" max="100" onchange="OV.lc.kernelLookback=+this.value;rerender()"></div>';
+  html += '<div class="sp-row"><span class="sp-label">Weight</span><input type="number" class="sp-num" value="'+s.kernelRelWeight+'" min="1" max="100" onchange="OV.lc.kernelRelWeight=+this.value;rerender()"></div>';
+  html += '</div>';
+  html += '<div class="sp-section"><div class="sp-section-title">Kernel Line</div>';
+  html += '<div class="sp-row"><span class="sp-label">Color</span><input type="color" class="sp-color" value="'+s.color+'" onchange="OV.lc.color=this.value;updateSwatches();rerender()"></div>';
+  html += '<div class="sp-row"><span class="sp-label">Style</span><div class="sp-btn-group">';
+  for (var i = 0; i < 5; i++) html += '<div class="sp-btn'+(s.lineStyle===i?' active':'')+'" onclick="OV.lc.lineStyle='+i+';rerender();openLCSettings({stopPropagation:function(){},target:this})">'+STYLE_SVGS[i]+'</div>';
+  html += '</div></div><div class="sp-row"><span class="sp-label">Width</span><div class="sp-btn-group">';
+  for (var w = 1; w <= 4; w++) html += '<div class="sp-btn'+(s.lineWidth===w?' active':'')+'" onclick="OV.lc.lineWidth='+w+';rerender();openLCSettings({stopPropagation:function(){},target:this})">'+WIDTH_SVGS[w-1]+'</div>';
+  html += '</div></div></div>';
+  popup.innerHTML = html; popup.style.display = 'block';
+  var rect = (evt.target || evt.srcElement).getBoundingClientRect();
+  var x = Math.min(rect.left, window.innerWidth - 270);
+  var y = rect.bottom + 6;
+  if (y + popup.offsetHeight > window.innerHeight) y = rect.top - popup.offsetHeight - 6;
+  popup.style.left = Math.max(5, x) + 'px'; popup.style.top = Math.max(5, y) + 'px';
+}
+function renderPopup(title, settings, evt) {
+  var popup = document.getElementById('settings-popup');
+  var html = '<div class="sp-header"><span class="sp-title">' + title + '</span><span class="sp-close" onclick="closeSettings()">&times;</span></div>';
+  if (popupTarget.type === 'osc') {
+    var osc = oscillators[popupTarget.idx];
+    html += '<div class="sp-section"><div class="sp-section-title">Parameters</div>';
+    html += '<div class="sp-row"><span class="sp-label">Period</span><input type="number" class="sp-num" value="'+osc.period+'" min="2" max="200" onchange="popSetPeriod(this.value)"></div>';
+    if (osc.period2 !== undefined) html += '<div class="sp-row"><span class="sp-label">Period 2</span><input type="number" class="sp-num" value="'+osc.period2+'" min="2" max="200" onchange="popSetPeriod2(this.value)"></div>';
+    html += '</div>';
+  }
+  html += '<div class="sp-section"><div class="sp-section-title">Line</div>';
+  html += '<div class="sp-row"><span class="sp-label">Color</span><input type="color" class="sp-color" value="'+settings.color+'" onchange="popSetColor(this.value)"></div>';
+  html += '<div class="sp-row"><span class="sp-label">Style</span><div class="sp-btn-group">';
+  for (var i = 0; i < 5; i++) html += '<div class="sp-btn'+(settings.lineStyle===i?' active':'')+'" onclick="popSetStyle('+i+')" title="'+STYLE_LABELS[i]+'">'+STYLE_SVGS[i]+'</div>';
+  html += '</div></div><div class="sp-row"><span class="sp-label">Width</span><div class="sp-btn-group">';
+  for (var w = 1; w <= 4; w++) html += '<div class="sp-btn'+(settings.lineWidth===w?' active':'')+'" onclick="popSetWidth('+w+')">'+WIDTH_SVGS[w-1]+'</div>';
+  html += '</div></div></div>';
+  if (popupTarget.type === 'osc' && oscillators[popupTarget.idx].color2) {
+    html += '<div class="sp-section"><div class="sp-section-title">Line 2</div><div class="sp-row"><span class="sp-label">Color</span><input type="color" class="sp-color" value="'+oscillators[popupTarget.idx].color2+'" onchange="popSetColor2(this.value)"></div></div>';
+  }
+  popup.innerHTML = html; popup.style.display = 'block';
+  var rect = (evt.target || evt.srcElement).getBoundingClientRect();
+  var x = Math.min(rect.left, window.innerWidth - 270);
+  var y = rect.bottom + 6;
+  if (y + popup.offsetHeight > window.innerHeight) y = rect.top - popup.offsetHeight - 6;
+  popup.style.left = Math.max(5, x) + 'px'; popup.style.top = Math.max(5, y) + 'px';
+}
+function openSyncSettings(evt) {
+  evt.stopPropagation();
+  popupTarget = {type:'sync'};
+  var popup = document.getElementById('settings-popup');
+  var descs = {
+    symbol: 'Selecting a symbol loads it into all panels',
+    interval: 'Changing timeframe applies to all panels',
+    crosshair: 'Crosshair position syncs across panels',
+    time: 'Zoom and scroll syncs across panels',
+    dateRange: 'All panels share the same date range'
+  };
+  var html = '<div class="sp-header"><span class="sp-title">Panel Sync</span><span class="sp-close" onclick="closeSettings()">&times;</span></div>';
+  var keys = ['symbol','interval','crosshair','time','dateRange'];
+  var labels = {symbol:'Symbol', interval:'Interval', crosshair:'Crosshair', time:'Time', dateRange:'Date range'};
+  keys.forEach(function(k) {
+    html += '<div class="sync-row"><span class="sync-label">' + labels[k] + ' <span class="sync-info" title="' + descs[k] + '">i</span></span>';
+    html += '<label class="sync-toggle"><input type="checkbox"' + (SYNC[k] ? ' checked' : '') + ' onchange="toggleSync(\'' + k + '\',this.checked)"><span class="slider"></span></label></div>';
+  });
+  popup.innerHTML = html; popup.style.display = 'block';
+  var rect = (evt.target || evt.srcElement).getBoundingClientRect();
+  var x = Math.min(rect.left, window.innerWidth - 270);
+  var y = rect.bottom + 6;
+  if (y + popup.offsetHeight > window.innerHeight) y = rect.top - popup.offsetHeight - 6;
+  popup.style.left = Math.max(5, x) + 'px'; popup.style.top = Math.max(5, y) + 'px';
+}
+function toggleSync(key, val) {
+  SYNC[key] = val;
+  if (key === 'time' && val && panels[activePanel] && panels[activePanel].chart) {
+    var range = panels[activePanel].chart.timeScale().getVisibleLogicalRange();
+    if (range) syncAllTimeScales(range, activePanel);
+  }
+  if (key === 'crosshair' && val) setupMultiPanelCrosshairSync();
+}
+function closeSettings(){document.getElementById('settings-popup').style.display='none';popupTarget=null;}
+document.addEventListener('mousedown', function(e) {
+  var popup = document.getElementById('settings-popup');
+  if (popup.style.display === 'block' && !popup.contains(e.target)) {
+    if (e.target.classList.contains('osc-gear') || e.target.classList.contains('tgl-gear') || e.target.classList.contains('sync-gear-btn')) return;
+    closeSettings();
+  }
+});
+function _getTarget(){if(!popupTarget)return null;return popupTarget.type==='osc'?oscillators[popupTarget.idx]:OV[popupTarget.key];}
+function _rePopup(){if(popupTarget){var t=_getTarget();renderPopup(document.querySelector('#settings-popup .sp-title').textContent,t,{target:document.querySelector('#settings-popup'),stopPropagation:function(){}});}}
+function popSetColor(v){var t=_getTarget();if(!t)return;t.color=v;updateSwatches();renderOscTags();rerender();_rePopup();}
+function popSetColor2(v){if(popupTarget&&popupTarget.type==='osc'){oscillators[popupTarget.idx].color2=v;rerender();}}
+function popSetStyle(v){var t=_getTarget();if(!t)return;t.lineStyle=v;rerender();_rePopup();}
+function popSetWidth(v){var t=_getTarget();if(!t)return;t.lineWidth=v;rerender();_rePopup();}
+function popSetPeriod(v){if(popupTarget&&popupTarget.type==='osc'){oscillators[popupTarget.idx].period=parseInt(v)||14;renderOscTags();rerender();}}
+function popSetPeriod2(v){if(popupTarget&&popupTarget.type==='osc'){oscillators[popupTarget.idx].period2=parseInt(v)||21;renderOscTags();rerender();}}
+
+// ============================================================================
+// OSCILLATOR ADD / REMOVE
+// ============================================================================
+document.getElementById('add-osc').addEventListener('change', function() {
+  var type = this.value; if (!type) return; this.value = '';
+  if (type === 'MA') {
+    var ma = {maType:'EMA', period:20, color:MA_COLORS[maColorIdx%MA_COLORS.length], lineStyle:0, lineWidth:1};
+    maColorIdx++; maOverlays.push(ma); renderMATags(); rerender();
+    return;
+  }
+  var def = OSC_DEFAULTS[type] || {};
+  var osc = {type:type, period:def.period||14, color:OSC_COLORS[oscColorIdx%OSC_COLORS.length], color2:def.color2||null, lineStyle:0, lineWidth:2};
+  if (def.period2) osc.period2 = def.period2;
+  oscColorIdx++; oscillators.push(osc); renderOscTags(); rerender();
+});
+function renderOscTags() {
+  var el = document.getElementById('osc-tags'); el.innerHTML = '';
+  oscillators.forEach(function(osc, idx) {
+    var tag = document.createElement('span'); tag.className = 'osc-tag'; tag.style.borderColor = osc.color;
+    var pStr = osc.period + (osc.period2 !== undefined ? ','+osc.period2 : '');
+    tag.innerHTML = '<span class="osc-dot" style="background:'+osc.color+'"></span><span class="osc-name">'+osc.type+' ('+pStr+')</span><span class="osc-gear" onclick="openOscSettings('+idx+',event)">&#9881;</span><span class="remove" onclick="removeOsc('+idx+')">&times;</span>';
+    el.appendChild(tag);
+  });
+}
+function removeOsc(idx){closeSettings();oscillators.splice(idx,1);renderOscTags();rerender();}
+
+// MA overlay tags
+function renderMATags() {
+  var el = document.getElementById('ma-tags'); if (!el) return; el.innerHTML = '';
+  maOverlays.forEach(function(ma, idx) {
+    var tag = document.createElement('span'); tag.className = 'osc-tag'; tag.style.borderColor = ma.color;
+    tag.innerHTML = '<span class="osc-dot" style="background:'+ma.color+'"></span><span class="osc-name">'+ma.maType+' ('+ma.period+')</span><span class="osc-gear" onclick="openMASettings('+idx+',event)">&#9881;</span><span class="remove" onclick="removeMA('+idx+')">&times;</span>';
+    el.appendChild(tag);
+  });
+}
+function removeMA(idx){closeSettings();maOverlays.splice(idx,1);renderMATags();rerender();}
+function openMASettings(idx, evt) {
+  evt.stopPropagation();
+  popupTarget = {type:'ma', idx:idx};
+  var ma = maOverlays[idx];
+  var popup = document.getElementById('settings-popup');
+  var html = '<div class="sp-header"><span class="sp-title">Moving Average</span><span class="sp-close" onclick="closeSettings()">&times;</span></div>';
+  html += '<div class="sp-section"><div class="sp-section-title">Type</div>';
+  html += '<div class="sp-row"><select style="background:#0d1117;border:1px solid #30363d;color:#c9d1d9;border-radius:4px;padding:3px 6px;font-size:12px" onchange="maOverlays['+idx+'].maType=this.value;renderMATags();rerender();openMASettings('+idx+',{stopPropagation:function(){},target:document.querySelector(\'#settings-popup\')})">';
+  MA_TYPES.forEach(function(t) { html += '<option value="'+t+'"'+(ma.maType===t?' selected':'')+'>'+t+'</option>'; });
+  html += '</select></div></div>';
+  html += '<div class="sp-section"><div class="sp-section-title">Parameters</div>';
+  html += '<div class="sp-row"><span class="sp-label">Period</span><input type="number" class="sp-num" value="'+ma.period+'" min="2" max="500" onchange="maOverlays['+idx+'].period=+this.value;renderMATags();rerender()"></div>';
+  html += '</div>';
+  html += '<div class="sp-section"><div class="sp-section-title">Line</div>';
+  html += '<div class="sp-row"><span class="sp-label">Color</span><input type="color" class="sp-color" value="'+ma.color+'" onchange="maOverlays['+idx+'].color=this.value;renderMATags();rerender()"></div>';
+  html += '<div class="sp-row"><span class="sp-label">Style</span><div class="sp-btn-group">';
+  for (var i = 0; i < 5; i++) html += '<div class="sp-btn'+(ma.lineStyle===i?' active':'')+'" onclick="maOverlays['+idx+'].lineStyle='+i+';rerender();openMASettings('+idx+',{stopPropagation:function(){},target:document.querySelector(\'#settings-popup\')})">'+STYLE_SVGS[i]+'</div>';
+  html += '</div></div><div class="sp-row"><span class="sp-label">Width</span><div class="sp-btn-group">';
+  for (var w = 1; w <= 4; w++) html += '<div class="sp-btn'+(ma.lineWidth===w?' active':'')+'" onclick="maOverlays['+idx+'].lineWidth='+w+';rerender();openMASettings('+idx+',{stopPropagation:function(){},target:document.querySelector(\'#settings-popup\')})">'+WIDTH_SVGS[w-1]+'</div>';
+  html += '</div></div></div>';
+  popup.innerHTML = html; popup.style.display = 'block';
+  var rect = (evt.target || evt.srcElement).getBoundingClientRect();
+  var x = Math.min(rect.left, window.innerWidth - 270);
+  var y = rect.bottom + 6;
+  if (y + popup.offsetHeight > window.innerHeight) y = rect.top - popup.offsetHeight - 6;
+  popup.style.left = Math.max(5, x) + 'px'; popup.style.top = Math.max(5, y) + 'px';
+}
+
+// ============================================================================
+// LORENTZIAN CLASSIFICATION
+// ============================================================================
+function chartDataToArray(data, bars) {
+  var result = new Array(bars.length);
+  for (var i = 0; i < bars.length; i++) result[i] = NaN;
+  var map = {};
+  for (var i = 0; i < bars.length; i++) map[bars[i].time] = i;
+  for (var j = 0; j < data.length; j++) {
+    var idx = map[data[j].time];
+    if (idx !== undefined) result[idx] = data[j].value;
+  }
+  return result;
+}
+function normalizeFeature(arr, period) {
+  var n = arr.length, result = new Array(n);
+  for (var i = 0; i < n; i++) {
+    if (isNaN(arr[i])) { result[i] = NaN; continue; }
+    var mn = arr[i], mx = arr[i];
+    for (var j = Math.max(0, i - period + 1); j <= i; j++) {
+      if (!isNaN(arr[j])) { if (arr[j] < mn) mn = arr[j]; if (arr[j] > mx) mx = arr[j]; }
+    }
+    result[i] = mx === mn ? 5 : (arr[i] - mn) / (mx - mn) * 10;
+  }
+  return result;
+}
+function computeATR(bars, period) {
+  var n = bars.length, result = new Array(n);
+  for (var i = 0; i < n; i++) result[i] = NaN;
+  if (n < period + 1) return result;
+  var sum = 0;
+  for (var i = 1; i <= period; i++) {
+    sum += Math.max(bars[i].high - bars[i].low, Math.abs(bars[i].high - bars[i-1].close), Math.abs(bars[i].low - bars[i-1].close));
+  }
+  result[period] = sum / period;
+  for (var i = period + 1; i < n; i++) {
+    var tr = Math.max(bars[i].high - bars[i].low, Math.abs(bars[i].high - bars[i-1].close), Math.abs(bars[i].low - bars[i-1].close));
+    result[i] = (result[i-1] * (period - 1) + tr) / period;
+  }
+  return result;
+}
+function kernelRQ(src, lookback, relWeight, startAtBar) {
+  var n = src.length, result = new Array(n);
+  var wSize = startAtBar + lookback;
+  for (var i = 0; i < n; i++) {
+    var num = 0, den = 0;
+    var lb = Math.min(wSize, i + 1);
+    for (var j = 0; j < lb; j++) {
+      var w = Math.pow(1 + (j * j) / (2 * relWeight * lookback * lookback), -relWeight);
+      num += src[i - j] * w; den += w;
+    }
+    result[i] = den > 0 ? num / den : src[i];
+  }
+  return result;
+}
+function calcLorentzian(bars) {
+  var s = OV.lc;
+  var K = s.neighbors || 8;
+  var maxBack = Math.min(s.maxBarsBack || 2000, bars.length);
+  var useVolFilter = s.useVolFilter !== false;
+  var useRegimeFilter = s.useRegimeFilter !== false;
+  var useADXFilter = s.useADXFilter || false;
+  var regimeThreshold = s.regimeThreshold != null ? s.regimeThreshold : -0.1;
+  var adxThreshold = s.adxThreshold || 20;
+  var kLookback = s.kernelLookback || 8;
+  var kRelWeight = s.kernelRelWeight || 8;
+  var kStartBar = s.kernelStartBar || 25;
+  if (bars.length < 100) return {signals:[], kernelLine:[]};
+  var closes = bars.map(function(b){return b.close;});
+  var rsi14 = chartDataToArray(calcRSI(bars, 14), bars);
+  var rsi9 = chartDataToArray(calcRSI(bars, 9), bars);
+  var wtData = calcWaveTrend(bars, 10, 11);
+  var wt1 = chartDataToArray(wtData.wt1, bars);
+  var cci20 = chartDataToArray(calcCCI(bars, 20), bars);
+  var adx14 = chartDataToArray(calcADX(bars, 14), bars);
+  var f1 = normalizeFeature(rsi14, 10);
+  var f2 = normalizeFeature(wt1, 10);
+  var f3 = normalizeFeature(cci20, 10);
+  var f4 = normalizeFeature(adx14, 10);
+  var f5 = normalizeFeature(rsi9, 10);
+  var labels = new Array(bars.length).fill(0);
+  for (var i = 0; i < bars.length - 4; i++) { labels[i] = closes[i + 4] > closes[i] ? 1 : -1; }
+  var atr10 = computeATR(bars, 10);
+  var kernelEst = kernelRQ(closes, kLookback, kRelWeight, kStartBar);
+  var warmup = 50;
+  var signals = [];
+  var prevState = 0;
+  for (var i = warmup; i < bars.length; i++) {
+    if (isNaN(f1[i]) || isNaN(f2[i]) || isNaN(f3[i]) || isNaN(f4[i]) || isNaN(f5[i])) continue;
+    var curF0 = f1[i], curF1 = f2[i], curF2 = f3[i], curF3 = f4[i], curF4 = f5[i];
+    var topK = [];
+    for (var k = 0; k < K; k++) topK.push({d:Infinity, label:0});
+    var startIdx = Math.max(warmup, i - maxBack);
+    for (var j = startIdx; j < i - 4; j++) {
+      if ((i - j) % 4 !== 0) continue;
+      if (isNaN(f1[j]) || isNaN(f2[j]) || isNaN(f3[j]) || isNaN(f4[j]) || isNaN(f5[j])) continue;
+      var d = Math.log(1 + Math.abs(curF0 - f1[j])) + Math.log(1 + Math.abs(curF1 - f2[j])) + Math.log(1 + Math.abs(curF2 - f3[j])) + Math.log(1 + Math.abs(curF3 - f4[j])) + Math.log(1 + Math.abs(curF4 - f5[j]));
+      if (d < topK[K-1].d) {
+        topK[K-1] = {d:d, label:labels[j]};
+        for (var m = K-1; m > 0 && topK[m].d < topK[m-1].d; m--) { var tmp = topK[m]; topK[m] = topK[m-1]; topK[m-1] = tmp; }
+      }
+    }
+    var prediction = 0;
+    for (var k = 0; k < K; k++) { if (topK[k].d < Infinity) prediction += topK[k].label; }
+    var regimeUp = i > 0 ? (kernelEst[i] - kernelEst[i-1] > regimeThreshold) : true;
+    var volOK = !useVolFilter || (!isNaN(atr10[i]) && !isNaN(atr10[i > 0 ? i-1 : 0]) && atr10[i] > atr10[i > 0 ? i-1 : 0]);
+    var adxOK = !useADXFilter || (!isNaN(adx14[i]) && adx14[i] > adxThreshold);
+    var isBullish = prediction > 0 && volOK && (!useRegimeFilter || regimeUp) && adxOK;
+    var isBearish = prediction < 0 && volOK && (!useRegimeFilter || !regimeUp) && adxOK;
+    var newState = isBullish ? 1 : (isBearish ? -1 : prevState);
+    if (newState === 1 && prevState !== 1) { signals.push({time:bars[i].time, position:'belowBar', color:'#3fb950', shape:'arrowUp', text:'Buy'}); }
+    else if (newState === -1 && prevState !== -1) { signals.push({time:bars[i].time, position:'aboveBar', color:'#f85149', shape:'arrowDown', text:'Sell'}); }
+    prevState = newState;
+  }
+  var kernelLine = [];
+  for (var i = warmup; i < bars.length; i++) {
+    if (!isNaN(kernelEst[i])) { kernelLine.push({time:bars[i].time, value:Math.round(kernelEst[i]*10000)/10000}); }
+  }
+  return {signals:signals, kernelLine:kernelLine};
+}
+
+// ============================================================================
+// SYMBOL LIST
+// ============================================================================
+function renderSymbolList(filter) {
+  var el = document.getElementById('symbol-list');
+  var filt = (filter || '').toUpperCase();
+  var activeSym = panels[activePanel] ? panels[activePanel].symbol : null;
+  el.innerHTML = '';
+  allSymbols.forEach(function(sym) {
+    if (filt && sym.indexOf(filt) === -1) return;
+    var div = document.createElement('div');
+    div.className = 'sym-item' + (sym === activeSym ? ' active' : '');
+    div.textContent = sym;
+    div.onclick = function() { selectSymbol(sym); };
+    el.appendChild(div);
+  });
+}
+function filterSymbols() { renderSymbolList(document.getElementById('sym-search').value); }
+function selectSymbol(sym) {
+  if (SYNC.symbol) {
+    var count = getPanelCount(currentLayout);
+    for (var i = 0; i < count; i++) { if (panels[i]) { panels[i].symbol = sym; updatePanelHeader(i); } }
+    renderSymbolList(document.getElementById('sym-search').value);
+    loadAllPanels();
+  } else {
+    var p = panels[activePanel]; if (!p) return;
+    p.symbol = sym;
+    updatePanelHeader(activePanel);
+    renderSymbolList(document.getElementById('sym-search').value);
+    loadPanelData(activePanel);
+  }
+}
+
+// ============================================================================
+// PERIOD BUTTONS
+// ============================================================================
+function setPeriod(p) {
+  activePeriod = p;
+  document.querySelectorAll('.period-btn').forEach(function(b) { b.classList.toggle('active', b.textContent === p); });
+  var today = new Date();
+  var end = fmtDate(today);
+  var start, tf;
+  switch(p) {
+    case '1D':  start = end; tf = '1min'; break;
+    case '5D':  start = fmtDate(addDays(today, -7)); tf = '5min'; break;
+    case '1M':  start = fmtDate(addDays(today, -31)); tf = '15min'; break;
+    case '3M':  start = fmtDate(addDays(today, -92)); tf = '1hour'; break;
+    case '6M':  start = fmtDate(addDays(today, -183)); tf = '1hour'; break;
+    case '1Y':  start = fmtDate(addDays(today, -365)); tf = '1day'; break;
+    case 'YTD': start = today.getFullYear() + '-01-01'; tf = daysAgo(today, new Date(today.getFullYear(),0,1)) > 90 ? '1day' : '1hour'; break;
+    case 'ALL': start = '2021-01-01'; tf = '1day'; break;
+    default:    start = fmtDate(addDays(today, -7)); tf = '5min';
+  }
+  document.getElementById('dt-start').value = start;
+  document.getElementById('dt-end').value = end;
+  if (panels[activePanel]) panels[activePanel].timeframe = tf;
+  document.getElementById('tf-input').value = tf;
+  updatePanelHeader(activePanel);
+  loadAllPanels();
+}
+function fmtDate(d) { return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); }
+function addDays(d, n) { var r = new Date(d); r.setDate(r.getDate() + n); return r; }
+function daysAgo(a, b) { return Math.round((a - b) / 86400000); }
+
+// ============================================================================
+// LAYOUT MANAGEMENT
+// ============================================================================
+var TF_LABELS = {'1min':'1m','3min':'3m','5min':'5m','15min':'15m','30min':'30m','1hour':'1H','4hour':'4H','1day':'1D'};
+function getPanelCount(layout) {
+  if (layout === '1') return 1;
+  if (layout === '2h' || layout === '2v') return 2;
+  if (layout.charAt(0) === '3') return 3;
+  return 4;
+}
+function makePanel(idx) {
+  return {id:idx, symbol:null, timeframe:document.getElementById('tf-input').value, bars:null, chart:null, candleSeries:null, resizeObs:null, loadAbort:null, el:null};
+}
+function setLayout(layout) {
+  currentLayout = layout;
+  var count = getPanelCount(layout);
+  document.getElementById('layout-select').value = layout;
+  destroyOscPanels();
+  panels.forEach(function(p) { destroyPanelChart(p); });
+  while (panels.length < count) panels.push(makePanel(panels.length));
+  if (activePanel >= count) activePanel = 0;
+  createPanelElements(count);
+  var grid = document.getElementById('panels-grid');
+  grid.className = 'layout-' + layout;
+  for (var i = 0; i < count; i++) { if (panels[i].symbol) loadPanelData(i); }
+  document.getElementById('tf-input').value = panels[activePanel].timeframe;
+}
+function createPanelElements(count) {
+  var grid = document.getElementById('panels-grid');
+  grid.innerHTML = '';
+  for (var i = 0; i < count; i++) {
+    var p = panels[i];
+    var div = document.createElement('div');
+    div.className = 'chart-panel' + (i === activePanel ? ' active' : '');
+    div.setAttribute('data-idx', i);
+    (function(idx) { div.addEventListener('mousedown', function() { setActivePanel(idx); }); })(i);
+    var hdr = document.createElement('div'); hdr.className = 'panel-header';
+    hdr.innerHTML = '<span class="panel-symbol">' + (p.symbol || '\u2014') + '</span><span class="panel-dot">\u00b7</span><span class="panel-tf">' + (TF_LABELS[p.timeframe] || p.timeframe) + '</span>';
+    div.appendChild(hdr);
+    var chartDiv = document.createElement('div'); chartDiv.className = 'panel-chart';
+    if (!p.symbol) chartDiv.innerHTML = '<div class="panel-empty">Select a symbol</div>';
+    var loading = document.createElement('div'); loading.className = 'panel-loading';
+    loading.innerHTML = '<div class="spinner"></div>';
+    chartDiv.appendChild(loading);
+    var nowBtn = document.createElement('button');
+    nowBtn.className = 'go-now-btn'; nowBtn.title = 'Scroll to latest';
+    nowBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 16 16"><path d="M3 2.5l8 5.5-8 5.5z" fill="currentColor"/><rect x="12" y="3" width="2" height="10" rx="0.5" fill="currentColor"/></svg>';
+    (function(idx) { nowBtn.addEventListener('click', function(e) { e.stopPropagation(); goToNow(idx); }); })(i);
+    chartDiv.appendChild(nowBtn);
+    div.appendChild(chartDiv);
+    grid.appendChild(div);
+    p.el = div;
+  }
+}
+function goToNow(idx) {
+  var p = panels[idx];
+  if (!p || !p.chart || !p.bars || !p.bars.length) return;
+  p.chart.timeScale().scrollToRealTime();
+}
+function setActivePanel(idx) {
+  if (idx === activePanel) return;
+  activePanel = idx;
+  document.querySelectorAll('.chart-panel').forEach(function(el, i) { el.classList.toggle('active', i === idx); });
+  if (panels[idx]) document.getElementById('tf-input').value = panels[idx].timeframe;
+  renderSymbolList(document.getElementById('sym-search').value);
+}
+function updatePanelHeader(idx) {
+  var p = panels[idx];
+  if (!p || !p.el) return;
+  var sym = p.el.querySelector('.panel-symbol');
+  var tfl = p.el.querySelector('.panel-tf');
+  if (sym) sym.textContent = p.symbol || '\u2014';
+  if (tfl) tfl.textContent = TF_LABELS[p.timeframe] || p.timeframe;
+}
+function showPanelLoading(idx, on) {
+  var p = panels[idx]; if (!p || !p.el) return;
+  var el = p.el.querySelector('.panel-loading');
+  if (el) el.classList.toggle('show', on);
+}
+function onTFChange() {
+  var tf = document.getElementById('tf-input').value.trim();
+  if (!tf) return;
+  if (SYNC.interval) {
+    var count = getPanelCount(currentLayout);
+    for (var i = 0; i < count; i++) { if (panels[i]) { panels[i].timeframe = tf; updatePanelHeader(i); } }
+    loadAllPanels();
+  } else {
+    var p = panels[activePanel]; if (!p) return;
+    p.timeframe = tf;
+    updatePanelHeader(activePanel);
+    if (p.symbol) loadPanelData(activePanel);
+  }
+}
+
+// ============================================================================
+// DATA LOADING
+// ============================================================================
+function loadAllPanels() {
+  var count = getPanelCount(currentLayout);
+  for (var i = 0; i < count; i++) { if (panels[i] && panels[i].symbol) loadPanelData(i); }
+}
+function loadPanelData(idx) {
+  var p = panels[idx]; if (!p || !p.symbol) return;
+  var start = document.getElementById('dt-start').value;
+  var end = document.getElementById('dt-end').value;
+  var tf = p.timeframe;
+  if (!start || !end) return;
+  showPanelLoading(idx, true);
+  if (p.loadAbort) p.loadAbort.abort();
+  var ctrl = new AbortController(); p.loadAbort = ctrl;
+  fetch('/api/bars?symbol=' + p.symbol + '&start=' + start + '&end=' + end + '&timeframe=' + tf, {signal: ctrl.signal})
+    .then(function(r) { return r.json(); })
+    .then(function(bars) {
+      showPanelLoading(idx, false);
+      if (!bars || !bars.length) {
+        destroyPanelChart(p);
+        var container = p.el.querySelector('.panel-chart');
+        container.innerHTML = '<div class="panel-empty">No data for ' + p.symbol + '</div><div class="panel-loading"><div class="spinner"></div></div>';
+        p.bars = null; return;
+      }
+      p.bars = bars;
+      renderPanelChart(idx);
+      if (currentLayout === '1' && idx === 0) renderOscPanels(bars);
+      if (currentLayout !== '1') {
+        if (SYNC.time) setupTimeSync();
+        if (SYNC.crosshair) setupMultiPanelCrosshairSync();
+      }
+    })
+    .catch(function(err) {
+      if (err.name === 'AbortError') return;
+      showPanelLoading(idx, false);
+      console.error('Load error:', err);
+    });
+}
+
+// ============================================================================
+// CHART RENDERING
+// ============================================================================
+function rerender() {
+  var count = getPanelCount(currentLayout);
+  for (var i = 0; i < count; i++) { if (panels[i] && panels[i].bars && panels[i].bars.length) renderPanelChart(i); }
+  if (currentLayout === '1' && panels[0] && panels[0].bars && panels[0].bars.length) { renderOscPanels(panels[0].bars); }
+  else { destroyOscPanels(); }
+}
+function destroyPanelChart(p) {
+  if (p.resizeObs) { p.resizeObs.disconnect(); p.resizeObs = null; }
+  if (p.chart) { p.chart.remove(); p.chart = null; p.candleSeries = null; }
+}
+function destroyOscPanels() { oscCharts.forEach(function(oc) { if (oc.resizeObs) oc.resizeObs.disconnect(); if (oc.chart) oc.chart.remove(); if (oc.handleEl && oc.handleEl.parentNode) oc.handleEl.parentNode.removeChild(oc.handleEl); if (oc.panelEl && oc.panelEl.parentNode) oc.panelEl.parentNode.removeChild(oc.panelEl); }); oscCharts = []; }
+
+function renderPanelChart(idx) {
+  var p = panels[idx];
+  destroyPanelChart(p);
+  if (!p.el) return;
+  var container = p.el.querySelector('.panel-chart');
+  container.innerHTML = '<div class="panel-loading"><div class="spinner"></div></div>';
+  var bars = p.bars;
+  if (!bars || !bars.length) { container.innerHTML = '<div class="panel-empty">No data</div>'; return; }
+  var w = container.clientWidth || 400, h = container.clientHeight || 300;
+  if (typeof LightweightCharts === 'undefined') return;
+  try {
+    var chOpts = {width:w, height:h, layout:{background:{type:'solid',color:'#0d1117'}, textColor:'#8b949e', fontSize:11}, grid:{vertLines:{color:'#1c2128'}, horzLines:{color:'#1c2128'}}, crosshair:{mode:LightweightCharts.CrosshairMode.Normal}, timeScale:{timeVisible:true, secondsVisible:false, borderColor:'#30363d'}, rightPriceScale:{borderColor:'#30363d'}};
+    p.chart = LightweightCharts.createChart(container, chOpts);
+    p.candleSeries = p.chart.addCandlestickSeries({upColor:'#3fb950', downColor:'#f85149', borderUpColor:'#3fb950', borderDownColor:'#f85149', wickUpColor:'#3fb950', wickDownColor:'#f85149'});
+    p.candleSeries.setData(bars);
+    // Volume
+    if (tgl('tgl-vol')) {
+      var volS = p.chart.addHistogramSeries({priceFormat:{type:'volume'}, priceScaleId:'vol'});
+      p.chart.priceScale('vol').applyOptions({scaleMargins:{top:0.85, bottom:0}});
+      volS.setData(bars.map(function(b) { return {time:b.time, value:b.volume, color:b.close>=b.open?'rgba(63,185,80,0.3)':'rgba(248,81,73,0.3)'}; }));
+    }
+    // Pre-market shade
+    var pmShade = [];
+    for (var i = 0; i < bars.length; i++) {
+      var _bd = new Date(bars[i].time * 1000);
+      var _m = _bd.getUTCHours() * 60 + _bd.getUTCMinutes();
+      if (_m >= 240 && _m < 570) pmShade.push({time:bars[i].time, value:1, color:'rgba(88,166,255,0.07)'});
+    }
+    if (pmShade.length > 0) {
+      var pmS = p.chart.addHistogramSeries({priceScaleId:'pm-bg', priceLineVisible:false, lastValueVisible:false});
+      p.chart.priceScale('pm-bg').applyOptions({scaleMargins:{top:0, bottom:0}, visible:false});
+      pmS.setData(pmShade);
+    }
+    // VWAP
+    if (tgl('tgl-vwap')) {
+      var ov = OV.vwap, vd = [], ctv = 0, cv = 0, lastDay = -1;
+      for (var i = 0; i < bars.length; i++) {
+        var bd = new Date(bars[i].time * 1000);
+        var curDay = bd.getUTCFullYear() * 10000 + bd.getUTCMonth() * 100 + bd.getUTCDate();
+        if (curDay !== lastDay) { ctv = 0; cv = 0; lastDay = curDay; }
+        var tp = (bars[i].high + bars[i].low + bars[i].close) / 3;
+        ctv += tp * bars[i].volume; cv += bars[i].volume;
+        if (cv > 0) vd.push({time:bars[i].time, value:Math.round(ctv/cv*10000)/10000});
+      }
+      if (vd.length > 0) { var vs = p.chart.addLineSeries({color:ov.color, lineWidth:ov.lineWidth, lineStyle:ov.lineStyle, crosshairMarkerVisible:false, priceLineVisible:false, lastValueVisible:false}); vs.setData(vd); }
+    }
+    // MA overlays
+    if (maOverlays.length > 0) {
+      var cls = bars.map(function(b){return b.close;});
+      maOverlays.forEach(function(ma) {
+        var vals = calcMA(cls, ma.maType, ma.period);
+        var data = [];
+        for (var i = 0; i < bars.length; i++) { if (vals[i] !== null && vals[i] !== undefined && !isNaN(vals[i])) data.push({time:bars[i].time, value:Math.round(vals[i]*10000)/10000}); }
+        if (data.length > 0) { var s = p.chart.addLineSeries({color:ma.color, lineWidth:ma.lineWidth, lineStyle:ma.lineStyle, crosshairMarkerVisible:false, priceLineVisible:false, lastValueVisible:false}); s.setData(data); }
+      });
+    }
+    // Lorentzian Classification
+    if (tgl('tgl-lc')) {
+      var lcResult = calcLorentzian(bars);
+      if (lcResult.kernelLine.length > 0) {
+        var ov = OV.lc;
+        var ks = p.chart.addLineSeries({color:ov.color, lineWidth:ov.lineWidth, lineStyle:ov.lineStyle, crosshairMarkerVisible:false, priceLineVisible:false, lastValueVisible:false});
+        ks.setData(lcResult.kernelLine);
+      }
+      if (lcResult.signals.length > 0) { p.candleSeries.setMarkers(lcResult.signals); }
+    }
+    p.chart.timeScale().fitContent();
+    var _p = p;
+    p.resizeObs = new ResizeObserver(function() { if (_p.chart) _p.chart.applyOptions({width:container.clientWidth, height:container.clientHeight}); });
+    p.resizeObs.observe(container);
+  } catch(err) { container.innerHTML = '<div class="panel-empty">Chart error: ' + err.message + '</div>'; console.error(err); }
+}
+
+// ============================================================================
+// OSCILLATOR PANELS
+// ============================================================================
+var DEFAULT_PANEL_HEIGHT = 120, MIN_PANEL_HEIGHT = 60, MAX_PANEL_HEIGHT = 500;
+
+function renderOscPanels(bars) {
+  destroyOscPanels();
+  if (!oscillators.length || typeof LightweightCharts === 'undefined') return;
+  var area = document.getElementById('charts-area');
+  oscillators.forEach(function(osc, idx) {
+    var pH = osc._height || DEFAULT_PANEL_HEIGHT, lw = osc.lineWidth, ls = osc.lineStyle, c1 = osc.color, c2 = osc.color2 || '#f85149';
+    var handle = document.createElement('div'); handle.className = 'resize-handle'; area.appendChild(handle);
+    var panel = document.createElement('div'); panel.className = 'osc-panel'; panel.style.height = pH + 'px';
+    var lbl = document.createElement('div'); lbl.className = 'osc-panel-label'; lbl.textContent = osc.type + ' (' + osc.period + (osc.period2 ? ',' + osc.period2 : '') + ')';
+    panel.appendChild(lbl); area.appendChild(panel);
+    attachResizeHandle(handle, panel, osc);
+    var w = panel.clientWidth || 800;
+    var chart = LightweightCharts.createChart(panel, {width:w, height:pH, layout:{background:{type:'solid',color:'#0d1117'}, textColor:'#8b949e', fontSize:10}, grid:{vertLines:{color:'#1c2128'}, horzLines:{color:'#1c2128'}}, timeScale:{timeVisible:true, secondsVisible:false, borderColor:'#30363d'}, rightPriceScale:{borderColor:'#30363d', scaleMargins:{top:0.1, bottom:0.1}}, crosshair:{mode:LightweightCharts.CrosshairMode.Normal}});
+    if (osc.type === 'RSI') {
+      var d = calcRSI(bars, osc.period), s = chart.addLineSeries({color:c1, lineWidth:lw, lineStyle:ls, priceLineVisible:false, lastValueVisible:true}); s.setData(d);
+      s.createPriceLine({price:70, color:'rgba(248,81,73,0.4)', lineWidth:1, lineStyle:2, axisLabelVisible:false, title:'OB'}); s.createPriceLine({price:50, color:'rgba(139,148,158,0.2)', lineWidth:1, lineStyle:2, axisLabelVisible:false}); s.createPriceLine({price:30, color:'rgba(63,185,80,0.4)', lineWidth:1, lineStyle:2, axisLabelVisible:false, title:'OS'});
+    } else if (osc.type === 'CCI') {
+      var d = calcCCI(bars, osc.period), s = chart.addLineSeries({color:c1, lineWidth:lw, lineStyle:ls, priceLineVisible:false, lastValueVisible:true}); s.setData(d);
+      s.createPriceLine({price:100, color:'rgba(248,81,73,0.4)', lineWidth:1, lineStyle:2, axisLabelVisible:false}); s.createPriceLine({price:0, color:'rgba(139,148,158,0.2)', lineWidth:1, lineStyle:2, axisLabelVisible:false}); s.createPriceLine({price:-100, color:'rgba(63,185,80,0.4)', lineWidth:1, lineStyle:2, axisLabelVisible:false});
+    } else if (osc.type === 'ADX') {
+      var d = calcADX(bars, osc.period), s = chart.addLineSeries({color:c1, lineWidth:lw, lineStyle:ls, priceLineVisible:false, lastValueVisible:true}); s.setData(d);
+      s.createPriceLine({price:25, color:'rgba(88,166,255,0.4)', lineWidth:1, lineStyle:2, axisLabelVisible:false, title:'Strong'}); s.createPriceLine({price:20, color:'rgba(139,148,158,0.2)', lineWidth:1, lineStyle:2, axisLabelVisible:false});
+    } else if (osc.type === 'WaveTrend') {
+      var wt = calcWaveTrend(bars, osc.period, osc.period2 || 21);
+      chart.addHistogramSeries({priceFormat:{type:'price', precision:2, minMove:0.01}, priceScaleId:'wt', priceLineVisible:false, lastValueVisible:false}).setData(wt.histogram);
+      var w1 = chart.addLineSeries({color:c1, lineWidth:lw, lineStyle:ls, priceLineVisible:false, lastValueVisible:true, priceScaleId:'wt'}); w1.setData(wt.wt1);
+      chart.addLineSeries({color:c2, lineWidth:Math.max(1,lw-1), lineStyle:ls, priceLineVisible:false, lastValueVisible:false, priceScaleId:'wt'}).setData(wt.wt2);
+      if (wt.crosses.length > 0) w1.setMarkers(wt.crosses);
+      w1.createPriceLine({price:60, color:'rgba(248,81,73,0.5)', lineWidth:1, lineStyle:2, axisLabelVisible:false, title:'OB1'}); w1.createPriceLine({price:53, color:'rgba(248,81,73,0.25)', lineWidth:1, lineStyle:3, axisLabelVisible:false}); w1.createPriceLine({price:0, color:'rgba(139,148,158,0.25)', lineWidth:1, lineStyle:2, axisLabelVisible:false}); w1.createPriceLine({price:-53, color:'rgba(63,185,80,0.25)', lineWidth:1, lineStyle:3, axisLabelVisible:false}); w1.createPriceLine({price:-60, color:'rgba(63,185,80,0.5)', lineWidth:1, lineStyle:2, axisLabelVisible:false, title:'OS1'});
+      chart.priceScale('wt').applyOptions({scaleMargins:{top:0.05, bottom:0.05}});
+    } else if (osc.type === 'MACD') {
+      var md = calcMACD(bars, osc.period, osc.period2 || 26);
+      chart.addHistogramSeries({priceFormat:{type:'price', precision:4, minMove:0.0001}, priceScaleId:'macd', priceLineVisible:false, lastValueVisible:false}).setData(md.histogram);
+      var s1 = chart.addLineSeries({color:c1, lineWidth:lw, lineStyle:ls, priceLineVisible:false, lastValueVisible:true, priceScaleId:'macd'}); s1.setData(md.macd);
+      chart.addLineSeries({color:c2, lineWidth:Math.max(1,lw-1), lineStyle:ls, priceLineVisible:false, lastValueVisible:false, priceScaleId:'macd'}).setData(md.signal);
+      s1.createPriceLine({price:0, color:'rgba(139,148,158,0.3)', lineWidth:1, lineStyle:2, axisLabelVisible:false});
+      chart.priceScale('macd').applyOptions({scaleMargins:{top:0.05, bottom:0.05}});
+    } else if (osc.type === 'Stochastic') {
+      var sd = calcStochastic(bars, osc.period, osc.period2 || 3);
+      var s1 = chart.addLineSeries({color:c1, lineWidth:lw, lineStyle:ls, priceLineVisible:false, lastValueVisible:true}); s1.setData(sd.k);
+      chart.addLineSeries({color:c2, lineWidth:Math.max(1,lw-1), lineStyle:ls, priceLineVisible:false, lastValueVisible:false}).setData(sd.d);
+      s1.createPriceLine({price:80, color:'rgba(248,81,73,0.4)', lineWidth:1, lineStyle:2, axisLabelVisible:false}); s1.createPriceLine({price:50, color:'rgba(139,148,158,0.2)', lineWidth:1, lineStyle:2, axisLabelVisible:false}); s1.createPriceLine({price:20, color:'rgba(63,185,80,0.4)', lineWidth:1, lineStyle:2, axisLabelVisible:false});
+    }
+    chart.timeScale().fitContent();
+    var ro = new ResizeObserver(function() { chart.applyOptions({width:panel.clientWidth, height:panel.clientHeight}); }); ro.observe(panel);
+    oscCharts.push({chart:chart, resizeObs:ro, panelEl:panel, handleEl:handle});
+  });
+  setupTimeSync();
+  setupCrosshairSync();
+}
+
+// ============================================================================
+// RESIZE HANDLES
+// ============================================================================
+function attachResizeHandle(handle, panel, osc) {
+  handle.addEventListener('mousedown', function(e) { e.preventDefault(); var startY = e.clientY, startH = panel.offsetHeight; handle.classList.add('active');
+    function onMove(e2) { var d = startY - e2.clientY; panel.style.height = Math.max(MIN_PANEL_HEIGHT, Math.min(MAX_PANEL_HEIGHT, startH + d)) + 'px'; osc._height = panel.offsetHeight; }
+    function onUp() { handle.classList.remove('active'); document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); }
+    document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp); });
+  handle.addEventListener('wheel', function(e) { e.preventDefault(); var step = 20, d = e.deltaY < 0 ? step : -step; panel.style.height = Math.max(MIN_PANEL_HEIGHT, Math.min(MAX_PANEL_HEIGHT, panel.offsetHeight + d)) + 'px'; osc._height = panel.offsetHeight; }, {passive:false});
+}
+
+// ============================================================================
+// TIME SCALE SYNC
+// ============================================================================
+function syncAllTimeScales(range, sourceIdx) {
+  if (syncing || !range) return;
+  syncing = true;
+  var count = getPanelCount(currentLayout);
+  for (var i = 0; i < count; i++) { if (i !== sourceIdx && panels[i] && panels[i].chart) { try { panels[i].chart.timeScale().setVisibleLogicalRange(range); } catch(e) {} } }
+  oscCharts.forEach(function(oc) { if (oc.chart) try { oc.chart.timeScale().setVisibleLogicalRange(range); } catch(e) {} });
+  syncing = false;
+}
+function setupTimeSync() {
+  if (currentLayout === '1' && panels[0] && panels[0].chart) {
+    var mc = panels[0].chart;
+    mc.timeScale().subscribeVisibleLogicalRangeChange(function(r) { if (syncing || !r) return; syncing = true; oscCharts.forEach(function(oc) { if (oc.chart) try { oc.chart.timeScale().setVisibleLogicalRange(r); } catch(e) {} }); syncing = false; });
+    oscCharts.forEach(function(oc) { oc.chart.timeScale().subscribeVisibleLogicalRangeChange(function(r) { if (syncing || !r) return; syncing = true; try { mc.timeScale().setVisibleLogicalRange(r); } catch(e) {} oscCharts.forEach(function(o) { if (o.chart !== oc.chart) try { o.chart.timeScale().setVisibleLogicalRange(r); } catch(e) {} }); syncing = false; }); });
+  }
+  if (SYNC.time && currentLayout !== '1') {
+    var count = getPanelCount(currentLayout);
+    for (var i = 0; i < count; i++) {
+      if (!panels[i] || !panels[i].chart) continue;
+      (function(idx) { panels[idx].chart.timeScale().subscribeVisibleLogicalRangeChange(function(r) { syncAllTimeScales(r, idx); }); })(i);
+    }
+  }
+}
+
+// ============================================================================
+// CROSSHAIR SYNC
+// ============================================================================
+function setupCrosshairSync() {
+  if (currentLayout === '1' && panels[0] && panels[0].chart) {
+    var entries = [];
+    var mainEl = panels[0].el ? panels[0].el.querySelector('.panel-chart') : null;
+    if (panels[0].chart && mainEl) {
+      var ml = document.createElement('div');
+      ml.style.cssText = 'display:none;position:absolute;top:0;bottom:0;width:1px;background:rgba(139,148,158,0.4);pointer-events:none;z-index:20;';
+      mainEl.appendChild(ml);
+      entries.push({chart:panels[0].chart, line:ml});
+    }
+    oscCharts.forEach(function(oc) {
+      var ol = document.createElement('div');
+      ol.style.cssText = 'display:none;position:absolute;top:0;bottom:0;width:1px;background:rgba(139,148,158,0.4);pointer-events:none;z-index:20;';
+      oc.panelEl.appendChild(ol);
+      entries.push({chart:oc.chart, line:ol});
+    });
+    if (entries.length >= 2) {
+      entries.forEach(function(entry, i) {
+        entry.chart.subscribeCrosshairMove(function(param) {
+          if (crosshairSyncing) return; crosshairSyncing = true;
+          entries.forEach(function(other, j) {
+            if (i === j) { other.line.style.display = 'none'; return; }
+            if (!param.time) { other.line.style.display = 'none'; return; }
+            var x = other.chart.timeScale().timeToCoordinate(param.time);
+            if (x !== null && x >= 0) { other.line.style.display = 'block'; other.line.style.left = x + 'px'; }
+            else { other.line.style.display = 'none'; }
+          });
+          crosshairSyncing = false;
+        });
+      });
+    }
+  }
+  if (SYNC.crosshair && currentLayout !== '1') setupMultiPanelCrosshairSync();
+}
+function setupMultiPanelCrosshairSync() {
+  var count = getPanelCount(currentLayout);
+  var entries = [];
+  for (var i = 0; i < count; i++) {
+    if (!panels[i] || !panels[i].chart || !panels[i].el) continue;
+    var chartEl = panels[i].el.querySelector('.panel-chart');
+    var oldLines = chartEl.querySelectorAll('.crosshair-sync-line');
+    oldLines.forEach(function(l) { l.parentNode.removeChild(l); });
+    var line = document.createElement('div');
+    line.className = 'crosshair-sync-line';
+    line.style.cssText = 'display:none;position:absolute;top:0;bottom:0;width:1px;background:rgba(139,148,158,0.4);pointer-events:none;z-index:20;';
+    chartEl.appendChild(line);
+    entries.push({chart:panels[i].chart, line:line, idx:i});
+  }
+  if (entries.length < 2) return;
+  entries.forEach(function(entry, i) {
+    entry.chart.subscribeCrosshairMove(function(param) {
+      if (crosshairSyncing || !SYNC.crosshair) return; crosshairSyncing = true;
+      entries.forEach(function(other, j) {
+        if (i === j) { other.line.style.display = 'none'; return; }
+        if (!param.time) { other.line.style.display = 'none'; return; }
+        var x = other.chart.timeScale().timeToCoordinate(param.time);
+        if (x !== null && x >= 0) { other.line.style.display = 'block'; other.line.style.left = x + 'px'; }
+        else { other.line.style.display = 'none'; }
+      });
+      crosshairSyncing = false;
+    });
+  });
+}
+
+// ============================================================================
+// KEYBOARD NAVIGATION
+// ============================================================================
+document.addEventListener('keydown', function(e) {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+  if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+    e.preventDefault();
+    var visItems = document.querySelectorAll('.sym-item');
+    if (!visItems.length) return;
+    var curIdx = -1;
+    visItems.forEach(function(el, i) { if (el.classList.contains('active')) curIdx = i; });
+    var nIdx = e.key === 'ArrowUp' ? Math.max(0, curIdx - 1) : Math.min(visItems.length - 1, curIdx + 1);
+    selectSymbol(visItems[nIdx].textContent);
+    visItems[nIdx].scrollIntoView({block:'nearest'});
+  }
+});
+document.getElementById('dt-start').addEventListener('keydown', function(e) { if (e.key === 'Enter') loadAllPanels(); });
+document.getElementById('dt-end').addEventListener('keydown', function(e) { if (e.key === 'Enter') loadAllPanels(); });
+document.getElementById('dt-start').addEventListener('change', function() { activePeriod = null; document.querySelectorAll('.period-btn').forEach(function(b){b.classList.remove('active');}); loadAllPanels(); });
+document.getElementById('dt-end').addEventListener('change', function() { activePeriod = null; document.querySelectorAll('.period-btn').forEach(function(b){b.classList.remove('active');}); loadAllPanels(); });
+
+// ============================================================================
+// INIT
+// ============================================================================
+(function() {
+  updateSwatches();
+  var today = new Date();
+  document.getElementById('dt-end').value = fmtDate(today);
+  document.getElementById('dt-start').value = fmtDate(addDays(today, -7));
+  panels.push(makePanel(0));
+  createPanelElements(1);
+  fetch('/api/symbols')
+    .then(function(r) { return r.json(); })
+    .then(function(symbols) {
+      allSymbols = symbols;
+      renderSymbolList();
+      if (symbols.length > 0) selectSymbol(symbols[0]);
+    })
+    .catch(function(err) { console.error('Failed to load symbols:', err); });
+})();
+</script>
+</body>
+</html>

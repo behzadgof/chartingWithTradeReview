@@ -1,0 +1,61 @@
+/* ============================================================================
+   SHARED CSS — used by both market.html and trades.html
+   ============================================================================ */
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #484f58; }
+
+/* Indicator toggles */
+.tgl-item { display: inline-flex; align-items: center; gap: 3px; padding: 2px 6px; border-radius: 3px; cursor: default; font-size: 11px; }
+.tgl-item:hover { background: #21262d; }
+.tgl-item input[type="checkbox"] { accent-color: #58a6ff; cursor: pointer; }
+.tgl-item .tgl-swatch { width: 12px; height: 3px; border-radius: 1px; flex-shrink: 0; }
+.tgl-item .tgl-name { cursor: pointer; }
+.tgl-item .tgl-gear { cursor: pointer; color: #484f58; font-size: 12px; margin-left: 1px; }
+.tgl-item .tgl-gear:hover { color: #8b949e; }
+
+/* Oscillator tags */
+.osc-tag { display: inline-flex; align-items: center; gap: 4px; background: #21262d; border: 1px solid #30363d; border-radius: 4px; padding: 3px 8px; font-size: 11px; cursor: default; }
+.osc-tag .osc-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.osc-tag .osc-name { color: #c9d1d9; }
+.osc-tag .osc-gear { cursor: pointer; color: #484f58; font-size: 13px; }
+.osc-tag .osc-gear:hover { color: #c9d1d9; }
+.osc-tag .remove { cursor: pointer; color: #f85149; font-weight: bold; }
+.osc-tag .remove:hover { color: #ff7b72; }
+
+/* Settings popup */
+#settings-popup { display: none; position: fixed; background: #1c2128; border: 1px solid #30363d; border-radius: 8px; padding: 14px 16px; z-index: 200; box-shadow: 0 8px 24px rgba(0,0,0,0.5); min-width: 240px; font-size: 12px; }
+#settings-popup .sp-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+#settings-popup .sp-title { font-weight: 600; color: #e6edf3; font-size: 13px; }
+#settings-popup .sp-close { cursor: pointer; color: #8b949e; font-size: 16px; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; border-radius: 4px; }
+#settings-popup .sp-close:hover { background: #30363d; color: #e6edf3; }
+.sp-section { margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid #21262d; }
+.sp-section:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
+.sp-section-title { font-size: 10px; text-transform: uppercase; color: #8b949e; letter-spacing: 0.5px; margin-bottom: 6px; }
+.sp-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.sp-row:last-child { margin-bottom: 0; }
+.sp-label { color: #8b949e; font-size: 11px; min-width: 45px; }
+.sp-color { -webkit-appearance: none; -moz-appearance: none; appearance: none; border: 1px solid #484f58; border-radius: 4px; width: 36px; height: 24px; padding: 0; cursor: pointer; background: none; }
+.sp-color::-webkit-color-swatch-wrapper { padding: 2px; }
+.sp-color::-webkit-color-swatch { border: none; border-radius: 3px; }
+.sp-color::-moz-color-swatch { border: none; border-radius: 3px; }
+.sp-num { width: 50px; background: #0d1117; border: 1px solid #30363d; color: #c9d1d9; border-radius: 4px; padding: 3px 6px; font-size: 12px; text-align: center; }
+
+/* Style + width button groups */
+.sp-btn-group { display: flex; gap: 3px; }
+.sp-btn { width: 36px; height: 26px; border: 1px solid #30363d; background: #21262d; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: #8b949e; transition: all 0.1s; }
+.sp-btn:hover { border-color: #484f58; color: #c9d1d9; }
+.sp-btn.active { border-color: #58a6ff; background: #0d2240; color: #58a6ff; }
+.sp-btn svg { display: block; }
+
+/* Oscillator panels */
+.osc-panel { flex-shrink: 0; position: relative; overflow: hidden; }
+.osc-panel-label { position: absolute; top: 4px; left: 8px; z-index: 10; font-size: 10px; color: #8b949e; background: rgba(13,17,23,0.85); padding: 1px 6px; border-radius: 3px; pointer-events: none; }
+
+/* Resize handles */
+.resize-handle { height: 5px; flex-shrink: 0; cursor: ns-resize; background: #30363d; position: relative; z-index: 15; transition: background 0.1s; }
+.resize-handle:hover, .resize-handle.active { background: #58a6ff; }
+.resize-handle::after { content: ''; position: absolute; top: -3px; bottom: -3px; left: 0; right: 0; }
