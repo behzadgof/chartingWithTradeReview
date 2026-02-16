@@ -154,3 +154,141 @@ class TestChartHTTPServer:
         with pytest.raises(urllib.error.HTTPError) as exc_info:
             urllib.request.urlopen(url)
         assert exc_info.value.code == 404
+
+
+class TestMarketMode:
+    """Test market page and market-mode endpoints."""
+
+    @pytest.fixture()
+    def market_server(self, tmp_path):
+        """Start server in market mode (no trades)."""
+        httpd = ChartHTTPServer(("", 0), ChartRequestHandler)
+        httpd.trades = None
+        httpd.summary = None
+        httpd.bars_by_date = None
+        httpd.market_data = None
+        httpd.cache_dir = None
+        httpd.state_dir = str(tmp_path / "state")
+
+        port = httpd.server_address[1]
+        thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+        thread.start()
+        time.sleep(0.2)
+        yield port, tmp_path
+        httpd.shutdown()
+
+    def test_market_page(self, market_server):
+        port, _ = market_server
+        url = f"http://localhost:{port}/market"
+        resp = urllib.request.urlopen(url)
+        html = resp.read().decode()
+        assert "LightweightCharts" in html or "createChart" in html
+
+    def test_root_redirects_to_market(self, market_server):
+        port, _ = market_server
+        req = urllib.request.Request(f"http://localhost:{port}/")
+        try:
+            urllib.request.urlopen(req)
+        except urllib.error.HTTPError as e:
+            assert e.code in (301, 302, 307, 308)
+            assert "/market" in e.headers.get("Location", "")
+
+    def test_api_symbols_empty(self, market_server):
+        port, _ = market_server
+        url = f"http://localhost:{port}/api/symbols"
+        resp = urllib.request.urlopen(url)
+        data = json.loads(resp.read())
+        assert data == []
+
+    def test_api_bars_missing_params(self, market_server):
+        port, _ = market_server
+        url = f"http://localhost:{port}/api/bars"
+        try:
+            urllib.request.urlopen(url)
+        except urllib.error.HTTPError as e:
+            assert e.code == 400
+
+
+class TestStateAPI:
+    """Test UI state persistence API endpoints."""
+
+    @pytest.fixture()
+    def state_server(self, tmp_path):
+        """Start server with a state directory."""
+        httpd = ChartHTTPServer(("", 0), ChartRequestHandler)
+        httpd.trades = None
+        httpd.summary = None
+        httpd.bars_by_date = None
+        httpd.market_data = None
+        httpd.cache_dir = None
+        httpd.state_dir = str(tmp_path / "state")
+
+        port = httpd.server_address[1]
+        thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+        thread.start()
+        time.sleep(0.2)
+        yield port
+        httpd.shutdown()
+
+    def _post_json(self, port, path, body):
+        data = json.dumps(body).encode("utf-8")
+        req = urllib.request.Request(
+            f"http://localhost:{port}{path}",
+            data=data,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        resp = urllib.request.urlopen(req)
+        return json.loads(resp.read())
+
+    def test_save_and_load(self, state_server):
+        port = state_server
+        # Save
+        result = self._post_json(port, "/api/state", {
+            "key": "orb_layout",
+            "value": {"panels": [{"symbol": "AAPL"}]},
+        })
+        assert result["ok"] is True
+
+        # Load
+        url = f"http://localhost:{port}/api/state?key=orb_layout"
+        resp = urllib.request.urlopen(url)
+        data = json.loads(resp.read())
+        assert data["key"] == "orb_layout"
+        assert data["value"]["panels"][0]["symbol"] == "AAPL"
+
+    def test_load_missing_key(self, state_server):
+        port = state_server
+        url = f"http://localhost:{port}/api/state?key=nonexistent"
+        resp = urllib.request.urlopen(url)
+        data = json.loads(resp.read())
+        assert data["value"] is None
+
+    def test_state_all(self, state_server):
+        port = state_server
+        # Save two keys
+        self._post_json(port, "/api/state", {"key": "key_a", "value": 1})
+        self._post_json(port, "/api/state", {"key": "key_b", "value": 2})
+
+        url = f"http://localhost:{port}/api/state/all"
+        resp = urllib.request.urlopen(url)
+        data = json.loads(resp.read())
+        assert data["key_a"] == 1
+        assert data["key_b"] == 2
+
+    def test_delete(self, state_server):
+        port = state_server
+        self._post_json(port, "/api/state", {"key": "doomed", "value": "bye"})
+        self._post_json(port, "/api/state/delete", {"key": "doomed"})
+
+        url = f"http://localhost:{port}/api/state?key=doomed"
+        resp = urllib.request.urlopen(url)
+        data = json.loads(resp.read())
+        assert data["value"] is None
+
+    def test_save_missing_key(self, state_server):
+        port = state_server
+        try:
+            self._post_json(port, "/api/state", {"value": "no key"})
+        except urllib.error.HTTPError as e:
+            assert e.code == 400
