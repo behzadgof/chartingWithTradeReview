@@ -38,6 +38,7 @@ def _cmd_serve(args: argparse.Namespace) -> None:
         trades=trades,
         summary=summary,
         cache_dir=args.cache_dir,
+        state_dir=args.state_dir,
         port=args.port,
         auto_open=not args.no_browser,
     )
@@ -82,6 +83,7 @@ def main() -> None:
     p_serve.add_argument("--port", type=int, default=5555, help="Server port")
     p_serve.add_argument("--cache-dir", default=None, help="Parquet cache directory")
     p_serve.add_argument("--trades", default=None, help="Backtest results JSON file")
+    p_serve.add_argument("--state-dir", default=None, help="UI state directory (default: ~/.orb/chart_state/)")
     p_serve.add_argument("--no-browser", action="store_true", help="Don't auto-open browser")
     p_serve.set_defaults(func=_cmd_serve)
 

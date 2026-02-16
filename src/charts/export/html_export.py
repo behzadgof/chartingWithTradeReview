@@ -60,6 +60,24 @@ def generate_trade_html(
     else:
         html = html.replace("{{SHARED_INDICATORS_JS}}", "")
 
+    # Substitute drawing tools CSS
+    drawing_css_path = _TEMPLATES_DIR / "_drawing.css"
+    if drawing_css_path.exists():
+        html = html.replace(
+            "{{DRAWING_CSS}}", drawing_css_path.read_text(encoding="utf-8"),
+        )
+    else:
+        html = html.replace("{{DRAWING_CSS}}", "")
+
+    # Substitute drawing tools JS
+    drawing_js_path = _TEMPLATES_DIR / "_drawing.js"
+    if drawing_js_path.exists():
+        html = html.replace(
+            "{{DRAWING_JS}}", drawing_js_path.read_text(encoding="utf-8"),
+        )
+    else:
+        html = html.replace("{{DRAWING_JS}}", "")
+
     # If bars not provided, try loading from cache
     if bars_by_date is None and cache_dir:
         bars_by_date = _load_bars_for_trades(trades, cache_dir)

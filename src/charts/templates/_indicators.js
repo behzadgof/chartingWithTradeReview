@@ -53,15 +53,103 @@ function hma(arr,period){
   return wma(diff,sqrtP);
 }
 
-function calcMA(closes, maType, period) {
+function kama(arr, period) {
+  var result = new Array(arr.length);
+  var fastSC = 2 / (2 + 1), slowSC = 2 / (30 + 1);
+  for (var i = 0; i < period; i++) result[i] = null;
+  if (arr.length <= period) return result;
+  result[period] = arr[period];
+  for (var i = period + 1; i < arr.length; i++) {
+    var direction = Math.abs(arr[i] - arr[i - period]);
+    var volatility = 0;
+    for (var j = i - period + 1; j <= i; j++) volatility += Math.abs(arr[j] - arr[j - 1]);
+    var er = volatility === 0 ? 0 : direction / volatility;
+    var sc = er * (fastSC - slowSC) + slowSC;
+    sc = sc * sc;
+    result[i] = result[i - 1] + sc * (arr[i] - result[i - 1]);
+  }
+  return result;
+}
+
+function t3(arr, period, vf) {
+  if (vf === undefined) vf = 0.7;
+  var e1 = ema(arr, period), e2 = ema(e1, period), e3 = ema(e2, period);
+  var e4 = ema(e3, period), e5 = ema(e4, period), e6 = ema(e5, period);
+  var c1 = -vf * vf * vf, c2 = 3 * vf * vf + 3 * vf * vf * vf;
+  var c3 = -6 * vf * vf - 3 * vf - 3 * vf * vf * vf, c4 = 1 + 3 * vf + vf * vf * vf + 3 * vf * vf;
+  var result = new Array(arr.length);
+  for (var i = 0; i < arr.length; i++) {
+    if (e6[i] !== undefined && e5[i] !== undefined && e4[i] !== undefined && e3[i] !== undefined)
+      result[i] = c1 * e6[i] + c2 * e5[i] + c3 * e4[i] + c4 * e3[i];
+    else result[i] = null;
+  }
+  return result;
+}
+
+function trima(arr, period) {
+  // Triangular MA: SMA of SMA
+  var n = Math.ceil((period + 1) / 2);
+  var s1 = sma(arr, n);
+  return sma(s1, n);
+}
+
+function lsma(arr, period) {
+  // Least Squares MA (Linear Regression Value)
+  var result = new Array(arr.length);
+  for (var i = 0; i < arr.length; i++) {
+    if (i < period - 1) { result[i] = null; continue; }
+    var sx = 0, sy = 0, sxy = 0, sxx = 0;
+    for (var j = 0; j < period; j++) {
+      var x = j, y = arr[i - period + 1 + j];
+      sx += x; sy += y; sxy += x * y; sxx += x * x;
+    }
+    result[i] = (period * sxy - sx * sy) / (period * sxx - sx * sx) * (period - 1) + (sy - (period * sxy - sx * sy) / (period * sxx - sx * sx) * sx) / period;
+  }
+  return result;
+}
+
+function smma(arr, period) {
+  // Smoothed MA (used in RSI, same as RMA/Wilder's MA)
+  var result = new Array(arr.length);
+  for (var i = 0; i < period - 1; i++) result[i] = null;
+  if (arr.length < period) return result;
+  var s = 0; for (var i = 0; i < period; i++) s += arr[i];
+  result[period - 1] = s / period;
+  for (var i = period; i < arr.length; i++) result[i] = (result[i - 1] * (period - 1) + arr[i]) / period;
+  return result;
+}
+
+// Data source extraction from bars
+function getSource(bars, source) {
+  switch (source) {
+    case 'open':  return bars.map(function(b) { return b.open; });
+    case 'high':  return bars.map(function(b) { return b.high; });
+    case 'low':   return bars.map(function(b) { return b.low; });
+    case 'close': return bars.map(function(b) { return b.close; });
+    case 'hl2':   return bars.map(function(b) { return (b.high + b.low) / 2; });
+    case 'hlc3':  return bars.map(function(b) { return (b.high + b.low + b.close) / 3; });
+    case 'ohlc4': return bars.map(function(b) { return (b.open + b.high + b.low + b.close) / 4; });
+    case 'hlcc4': return bars.map(function(b) { return (b.high + b.low + b.close + b.close) / 4; });
+    default:      return bars.map(function(b) { return b.close; });
+  }
+}
+
+var DATA_SOURCES = ['close','open','high','low','hl2','hlc3','ohlc4','hlcc4'];
+
+function calcMA(data, maType, period) {
   switch(maType) {
-    case 'SMA': return sma(closes, period);
-    case 'EMA': return ema(closes, period);
-    case 'WMA': return wma(closes, period);
-    case 'DEMA': return dema(closes, period);
-    case 'TEMA': return tema(closes, period);
-    case 'HMA': return hma(closes, period);
-    default: return ema(closes, period);
+    case 'SMA':  return sma(data, period);
+    case 'EMA':  return ema(data, period);
+    case 'WMA':  return wma(data, period);
+    case 'DEMA': return dema(data, period);
+    case 'TEMA': return tema(data, period);
+    case 'HMA':  return hma(data, period);
+    case 'KAMA': return kama(data, period);
+    case 'T3':   return t3(data, period);
+    case 'TRIMA':return trima(data, period);
+    case 'LSMA': return lsma(data, period);
+    case 'SMMA': return smma(data, period);
+    default: return ema(data, period);
   }
 }
 
@@ -149,4 +237,53 @@ function calcStochastic(bars,kP,dP){
   var dL=[];
   for(var i=dP-1;i<r.length;i++){var s=0;for(var j=i-dP+1;j<=i;j++)s+=r[j].value;dL.push({time:r[i].time,value:s/dP});}
   return{k:r,d:dL};
+}
+
+// ============================================================================
+// SERVER-SIDE STATE PERSISTENCE
+// ============================================================================
+// In-memory cache populated at page init by bulk-load from /api/state/all.
+// saveToStorage fires async POST (fire-and-forget).
+// loadFromStorage reads from cache synchronously (no round-trip).
+var __stateCache = {};
+
+function _initStateCache(bulkData) {
+  if (bulkData && typeof bulkData === 'object') __stateCache = bulkData;
+}
+
+function saveToStorage(key, data) {
+  __stateCache[key] = data;
+  try {
+    fetch('/api/state', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({key: key, value: data})
+    }).catch(function(){});
+  } catch(e) {}
+}
+
+function loadFromStorage(key) {
+  if (__stateCache.hasOwnProperty(key)) {
+    try { return JSON.parse(JSON.stringify(__stateCache[key])); } catch(e) { return __stateCache[key]; }
+  }
+  return null;
+}
+
+function deleteFromStorage(key) {
+  delete __stateCache[key];
+  try {
+    fetch('/api/state/delete', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({key: key})
+    }).catch(function(){});
+  } catch(e) {}
+}
+
+function formatVol(v){
+  if(v==null)return'--';
+  if(v>=1e9)return(v/1e9).toFixed(1)+'B';
+  if(v>=1e6)return(v/1e6).toFixed(1)+'M';
+  if(v>=1e3)return(v/1e3).toFixed(1)+'K';
+  return v.toString();
 }

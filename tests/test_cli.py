@@ -66,6 +66,6 @@ class TestCLIParsing:
         ]):
             main()
         assert output.exists()
-        html = output.read_text()
+        html = output.read_text(encoding="utf-8")
         assert "T001" in html
         assert "LightweightCharts" in html

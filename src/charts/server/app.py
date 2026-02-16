@@ -28,6 +28,7 @@ class ChartHTTPServer(socketserver.ThreadingMixIn, http.server.HTTPServer):
     summary: BacktestSummary | None = None
     bars_by_date: dict[str, list[dict]] | None = None
     cache_dir: str | None = None
+    state_dir: str | None = None
 
 
 class ChartServer:
@@ -59,6 +60,7 @@ class ChartServer:
         summary: BacktestSummary | None = None,
         bars_by_date: dict[str, list[dict]] | None = None,
         cache_dir: str | None = None,
+        state_dir: str | None = None,
         port: int = 5555,
         auto_open: bool = True,
     ) -> None:
@@ -67,6 +69,7 @@ class ChartServer:
         self.summary = summary
         self.bars_by_date = bars_by_date
         self.cache_dir = cache_dir
+        self.state_dir = state_dir
         self.port = port
         self.auto_open = auto_open
 
@@ -80,6 +83,7 @@ class ChartServer:
         server.summary = self.summary
         server.bars_by_date = self.bars_by_date
         server.cache_dir = self.cache_dir
+        server.state_dir = self.state_dir
 
         url = f"http://localhost:{self.port}"
         mode = "trades" if self.trades else "market"
@@ -87,6 +91,8 @@ class ChartServer:
         print(f"Chart Server ({mode} mode)")
         if self.cache_dir:
             print(f"  Cache:  {self.cache_dir}")
+        if self.state_dir:
+            print(f"  State:  {self.state_dir}")
         if self.trades:
             print(f"  Trades: {len(self.trades)}")
         print(f"  URL:    {url}")

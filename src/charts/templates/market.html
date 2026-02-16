@@ -8,22 +8,95 @@
 <script>{{LIB_JS}}</script>
 <style>
 {{SHARED_CSS}}
+{{DRAWING_CSS}}
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0d1117; color: #c9d1d9; display: flex; height: 100vh; overflow: hidden; }
 
 /* Sidebar */
-#sidebar { width: 200px; min-width: 200px; background: #161b22; border-right: 1px solid #30363d; display: flex; flex-direction: column; overflow: hidden; }
-#sidebar-header { padding: 14px 16px 10px; border-bottom: 1px solid #30363d; }
-#sidebar-header h1 { font-size: 15px; color: #58a6ff; }
+#sidebar { width: 260px; min-width: 260px; background: #161b22; border-right: 1px solid #30363d; display: flex; flex-direction: column; overflow: hidden; z-index: 10; }
+#sidebar-header { padding: 10px 12px 8px; border-bottom: 1px solid #30363d; display: flex; align-items: center; justify-content: space-between; }
+#sidebar-header h1 { font-size: 16px; color: #58a6ff; }
+#sidebar-header .sb-actions { display: flex; gap: 6px; }
+.sb-icon-btn { background: none; border: none; color: #8b949e; cursor: pointer; font-size: 16px; padding: 2px 5px; border-radius: 3px; display: flex; align-items: center; }
+.sb-icon-btn:hover { color: #c9d1d9; background: #21262d; }
+/* Watchlist tabs */
+#wl-tabs { display: flex; align-items: center; border-bottom: 1px solid #30363d; background: #0d1117; overflow-x: auto; flex-shrink: 0; }
+#wl-tabs::-webkit-scrollbar { height: 0; }
+.wl-tab { padding: 7px 14px; font-size: 13px; font-weight: 600; color: #8b949e; cursor: pointer; border-bottom: 2px solid transparent; white-space: nowrap; transition: all 0.1s; flex-shrink: 0; }
+.wl-tab:hover { color: #c9d1d9; }
+.wl-tab.active { color: #58a6ff; border-bottom-color: #58a6ff; }
+.wl-tab-add { padding: 7px 10px; font-size: 16px; color: #8b949e; cursor: pointer; flex-shrink: 0; }
+.wl-tab-add:hover { color: #c9d1d9; }
+/* Search */
 #search-wrap { padding: 8px 10px; border-bottom: 1px solid #30363d; }
-#sym-search { width: 100%; background: #0d1117; border: 1px solid #30363d; color: #c9d1d9; padding: 6px 10px; border-radius: 6px; font-size: 12px; outline: none; }
+#sym-search { width: 100%; background: #0d1117; border: 1px solid #30363d; color: #c9d1d9; padding: 6px 10px; border-radius: 5px; font-size: 13px; outline: none; }
 #sym-search:focus { border-color: #58a6ff; }
 #sym-search::placeholder { color: #484f58; }
-#symbol-list { flex: 1; overflow-y: auto; }
-.sym-item { padding: 9px 16px; cursor: pointer; font-size: 13px; font-weight: 600; color: #8b949e; border-left: 3px solid transparent; transition: background 0.1s; }
-.sym-item:hover { background: #21262d; color: #c9d1d9; }
+/* Symbol list */
+#symbol-list { flex: 1; overflow-y: auto; overscroll-behavior: contain; }
+.wl-group { border-bottom: 1px solid #21262d; }
+.wl-group-header { display: flex; align-items: center; gap: 5px; padding: 7px 10px; cursor: pointer; user-select: none; font-size: 12px; text-transform: uppercase; color: #8b949e; letter-spacing: 0.5px; font-weight: 700; }
+.wl-group-header:hover { background: #21262d; color: #c9d1d9; }
+.wl-group-header .wl-g-arrow { font-size: 10px; transition: transform 0.15s; }
+.wl-group-header .wl-g-arrow.collapsed { transform: rotate(-90deg); }
+.wl-group-header .wl-g-name { flex: 1; }
+.wl-group-header .wl-g-actions { display: flex; gap: 3px; opacity: 0; transition: opacity 0.1s; }
+.wl-group-header:hover .wl-g-actions { opacity: 1; }
+.wl-g-btn { background: none; border: none; color: #8b949e; cursor: pointer; font-size: 13px; padding: 2px 4px; border-radius: 2px; line-height: 1; }
+.wl-g-btn:hover { color: #c9d1d9; }
+/* Group drag handle */
+.wl-group-header.drag-over { background: #0d2240; border-bottom: 2px solid #58a6ff; }
+/* Sort controls in sidebar header */
+.wl-sort-bar { display: flex; align-items: center; gap: 4px; padding: 5px 10px; border-bottom: 1px solid #21262d; font-size: 12px; color: #8b949e; }
+.wl-sort-btn { background: none; border: none; color: #8b949e; cursor: pointer; font-size: 12px; padding: 3px 7px; border-radius: 3px; }
+.wl-sort-btn:hover { color: #c9d1d9; background: #21262d; }
+.wl-sort-btn.active { color: #58a6ff; }
+/* Quote status indicator */
+.wl-quote-status { font-size: 11px; padding: 2px 6px; border-radius: 3px; margin-left: auto; }
+.wl-quote-status.live { color: #3fb950; }
+.wl-quote-status.delayed { color: #f0883e; }
+.wl-quote-status.closed { color: #8b949e; }
+.wl-group-items { }
+.wl-group-items.collapsed { display: none; }
+.sym-item { display: flex; align-items: center; gap: 8px; padding: 7px 10px 7px 18px; cursor: pointer; font-size: 14px; color: #c9d1d9; border-left: 3px solid transparent; transition: background 0.1s; }
+.sym-item:hover { background: #21262d; }
 .sym-item.active { background: #0d2240; border-left-color: #58a6ff; color: #58a6ff; }
+.sym-item .si-symbol { font-weight: 700; min-width: 52px; }
+.sym-item .si-price { font-family: 'SF Mono','Consolas',monospace; font-size: 13px; color: #c9d1d9; }
+.sym-item .si-change { font-family: 'SF Mono','Consolas',monospace; font-size: 12px; text-align: right; flex: 1; white-space: nowrap; }
+.sym-item .si-change.pos { color: #3fb950; }
+.sym-item .si-change.neg { color: #f85149; }
+.sym-item .si-gear { opacity: 0; color: #8b949e; font-size: 14px; cursor: pointer; flex-shrink: 0; }
+.sym-item:hover .si-gear { opacity: 1; }
+.sym-item .si-gear:hover { color: #c9d1d9; }
+/* Symbol context menu */
+.sym-ctx { position: fixed; background: #1c2128; border: 1px solid #30363d; border-radius: 6px; padding: 4px; z-index: 300; box-shadow: 0 4px 12px rgba(0,0,0,0.5); min-width: 160px; }
+.sym-ctx-item { display: flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 4px; cursor: pointer; font-size: 13px; color: #c9d1d9; }
+.sym-ctx-item:hover { background: #21262d; }
+.sym-ctx-item.danger { color: #f85149; }
+.sym-ctx-item.danger:hover { background: #f8514915; }
+.sym-ctx-sep { height: 1px; background: #30363d; margin: 4px 0; }
+/* Add symbol input */
+.wl-add-sym { padding: 8px 10px; border-top: 1px solid #30363d; flex-shrink: 0; }
+.wl-add-sym input { width: 100%; background: #0d1117; border: 1px solid #30363d; color: #c9d1d9; padding: 6px 10px; border-radius: 5px; font-size: 13px; outline: none; }
+.wl-add-sym select { background: #0d1117; border: 1px solid #30363d; color: #8b949e; padding: 5px; border-radius: 5px; font-size: 12px; outline: none; max-width: 100px; }
+/* Sidebar font size */
+#symbol-list.fs-small .sym-item { font-size: 12px; padding: 5px 10px 5px 16px; }
+#symbol-list.fs-small .sym-item .si-price { font-size: 11px; }
+#symbol-list.fs-small .sym-item .si-change { font-size: 10px; }
+#symbol-list.fs-small .wl-group-header { font-size: 10px; }
+#symbol-list.fs-medium .sym-item { font-size: 14px; }
+#symbol-list.fs-medium .sym-item .si-price { font-size: 13px; }
+#symbol-list.fs-medium .sym-item .si-change { font-size: 12px; }
+#symbol-list.fs-medium .wl-group-header { font-size: 12px; }
+#symbol-list.fs-large .sym-item { font-size: 16px; padding: 8px 10px 8px 18px; }
+#symbol-list.fs-large .sym-item .si-symbol { min-width: 58px; }
+#symbol-list.fs-large .sym-item .si-price { font-size: 15px; }
+#symbol-list.fs-large .sym-item .si-change { font-size: 13px; }
+#symbol-list.fs-large .wl-group-header { font-size: 13px; }
+.wl-add-sym input:focus { border-color: #58a6ff; }
+.wl-add-sym input::placeholder { color: #484f58; }
 
 /* Main content */
 #main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
@@ -39,6 +112,21 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 .period-btn { background: #21262d; color: #8b949e; border: 1px solid #30363d; border-radius: 4px; padding: 3px 7px; font-size: 10px; cursor: pointer; font-weight: 600; transition: all 0.1s; }
 .period-btn:hover { background: #30363d; color: #c9d1d9; }
 .period-btn.active { background: #0d2240; color: #58a6ff; border-color: #58a6ff; }
+.layout-tabs { display: flex; align-items: center; gap: 2px; }
+.layout-tab { width: 24px; height: 22px; border: 1px solid #30363d; background: #21262d; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: #8b949e; padding: 0; transition: all 0.1s; }
+.layout-tab:hover { border-color: #484f58; color: #c9d1d9; }
+.layout-tab.active { background: #0d2240; color: #58a6ff; border-color: #58a6ff; }
+.layout-more { background: #21262d; color: #8b949e; border: 1px solid #30363d; border-radius: 4px; padding: 2px 4px; font-size: 10px; cursor: pointer; max-width: 20px; }
+/* Named layout tabs */
+.named-layouts { display: flex; align-items: center; gap: 2px; }
+.nl-tab { display: flex; align-items: center; gap: 3px; background: #21262d; border: 1px solid #30363d; border-radius: 4px; padding: 2px 8px; cursor: pointer; color: #8b949e; font-size: 10px; font-weight: 600; transition: all 0.1s; white-space: nowrap; max-width: 120px; overflow: hidden; text-overflow: ellipsis; height: 22px; }
+.nl-tab:hover { border-color: #484f58; color: #c9d1d9; }
+.nl-tab.active { background: #0d2240; color: #58a6ff; border-color: #58a6ff; }
+.nl-tab .nl-close { display: none; font-size: 11px; margin-left: 2px; color: #484f58; line-height: 1; }
+.nl-tab:hover .nl-close { display: inline; }
+.nl-tab .nl-close:hover { color: #f85149; }
+.nl-add { width: 22px; height: 22px; border: 1px solid #30363d; background: #21262d; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: #484f58; font-size: 14px; transition: all 0.1s; }
+.nl-add:hover { border-color: #484f58; color: #58a6ff; }
 
 /* Charts area */
 #charts-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-height: 0; }
@@ -57,7 +145,6 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 #panels-grid.layout-4 { grid-template: 1fr 1fr / 1fr 1fr; }
 .chart-panel { display: flex; flex-direction: column; background: #0d1117; border: 2px solid #21262d; overflow: hidden; position: relative; min-height: 0; min-width: 0; }
 .chart-panel.active { border-color: #58a6ff; }
-.chart-panel .panel-header { display: flex; align-items: center; gap: 6px; padding: 3px 8px; background: #161b22; border-bottom: 1px solid #30363d; flex-shrink: 0; font-size: 11px; cursor: pointer; user-select: none; }
 .chart-panel .panel-symbol { font-weight: 600; color: #e6edf3; min-width: 30px; }
 .chart-panel .panel-dot { color: #484f58; font-size: 10px; }
 .chart-panel .panel-tf { font-size: 10px; color: #8b949e; }
@@ -78,25 +165,54 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 .sync-toggle .slider::before { content: ''; position: absolute; width: 14px; height: 14px; left: 2px; bottom: 2px; background: #8b949e; border-radius: 50%; transition: transform 0.2s, background 0.2s; }
 .sync-toggle input:checked + .slider { background: #1f6feb; }
 .sync-toggle input:checked + .slider::before { transform: translateX(16px); background: #fff; }
-/* Go-to-now button */
-.go-now-btn { position: absolute; bottom: 30px; right: 10px; z-index: 30; width: 30px; height: 30px; border-radius: 6px; background: #21262d; border: 1px solid #484f58; color: #c9d1d9; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
-.go-now-btn:hover { background: #1f6feb; color: #fff; border-color: #1f6feb; }
-.go-now-btn svg { display: block; }
 /* Sync gear button */
 .sync-gear-btn { background: #21262d; border: 1px solid #30363d; border-radius: 4px; padding: 2px 6px; cursor: pointer; color: #8b949e; font-size: 13px; transition: all 0.1s; display: flex; align-items: center; }
 .sync-gear-btn:hover { background: #30363d; color: #c9d1d9; }
 /* TF combo input */
-.tf-input { width: 52px; background: #21262d; color: #c9d1d9; border: 1px solid #30363d; border-radius: 4px; padding: 3px 6px; font-size: 11px; outline: none; text-align: center; }
+.tf-wrap { display: inline-block; position: relative; }
+.tf-input { width: 62px; background: #21262d; color: #c9d1d9; border: 1px solid #30363d; border-radius: 4px; padding: 3px 4px; font-size: 11px; outline: none; cursor: pointer; }
 .tf-input:focus { border-color: #58a6ff; }
-.tf-input::-webkit-calendar-picker-indicator { display: none; }
+.tf-custom { cursor: text; }
+/* Chart settings button */
+.chart-settings-btn { background: #21262d; border: 1px solid #30363d; border-radius: 4px; padding: 2px 6px; cursor: pointer; color: #8b949e; font-size: 11px; transition: all 0.1s; display: flex; align-items: center; gap: 4px; }
+.chart-settings-btn:hover { background: #30363d; color: #c9d1d9; }
+/* Chart settings popup */
+.cs-popup { position: fixed; background: #1c2128; border: 1px solid #30363d; border-radius: 8px; padding: 14px 16px; z-index: 300; box-shadow: 0 4px 16px rgba(0,0,0,0.5); font-size: 12px; min-width: 240px; }
+.cs-popup .cs-title { font-size: 10px; text-transform: uppercase; color: #8b949e; letter-spacing: 0.5px; margin-bottom: 10px; }
+.cs-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.cs-row:last-child { margin-bottom: 0; }
+.cs-label { color: #8b949e; font-size: 11px; min-width: 55px; }
+.cs-select { background: #0d1117; color: #c9d1d9; border: 1px solid #30363d; border-radius: 4px; padding: 4px 8px; font-size: 12px; cursor: pointer; flex: 1; }
+.cs-select:focus { border-color: #58a6ff; outline: none; }
+.cs-hint { color: #484f58; font-size: 10px; margin-top: -6px; margin-bottom: 8px; }
 </style>
 </head>
 <body>
 
 <div id="sidebar">
-  <div id="sidebar-header"><h1>Asset Charts</h1></div>
+  <div id="sidebar-header">
+    <h1>Watchlist</h1>
+    <span class="sb-actions">
+      <button class="sb-icon-btn" onclick="cycleListFontSize()" title="Font size">A</button>
+      <button class="sb-icon-btn" onclick="addNewGroup()" title="New Group">&#43;</button>
+    </span>
+  </div>
+  <div id="wl-tabs"></div>
   <div id="search-wrap"><input type="text" id="sym-search" placeholder="Search symbols..." oninput="filterSymbols()"></div>
+  <div class="wl-sort-bar">
+    <span style="margin-right:2px">Sort:</span>
+    <button class="wl-sort-btn active" data-sort="manual" onclick="setSymSort('manual')" title="Manual order">Manual</button>
+    <button class="wl-sort-btn" data-sort="name" onclick="setSymSort('name')" title="Sort A-Z">A-Z</button>
+    <button class="wl-sort-btn" data-sort="change" onclick="setSymSort('change')" title="Sort by % change">%Chg</button>
+    <span id="quote-status" class="wl-quote-status closed"></span>
+  </div>
   <div id="symbol-list"></div>
+  <div class="wl-add-sym">
+    <div style="display:flex;gap:4px;">
+      <input type="text" id="add-sym-input" placeholder="Add symbol..." style="flex:1" />
+      <select id="add-sym-group" title="Add to group" style="display:none;"></select>
+    </div>
+  </div>
 </div>
 
 <div id="main">
@@ -116,40 +232,56 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
       <button class="period-btn" onclick="setPeriod('ALL')">ALL</button>
     </div>
     <div class="sep"></div>
-    <select id="layout-select" onchange="setLayout(this.value)">
-      <option value="1" selected>Single</option>
-      <option value="2h">2 Side by Side</option>
-      <option value="2v">2 Stacked</option>
-      <option value="3t">1 Top + 2 Bottom</option>
-      <option value="3b">2 Top + 1 Bottom</option>
-      <option value="3l">1 Left + 2 Right</option>
-      <option value="3r">2 Left + 1 Right</option>
-      <option value="4">2x2 Grid</option>
-    </select>
+    <div class="named-layouts" id="named-layouts"></div>
+    <div class="sep"></div>
+    <div class="layout-tabs" id="layout-tabs">
+      <button class="layout-tab active" data-layout="1" onclick="setLayout('1')" title="Single">
+        <svg width="14" height="14" viewBox="0 0 14 14"><rect x="1" y="1" width="12" height="12" rx="1" stroke="currentColor" fill="none" stroke-width="1.2"/></svg>
+      </button>
+      <button class="layout-tab" data-layout="2h" onclick="setLayout('2h')" title="2 Side by Side">
+        <svg width="14" height="14" viewBox="0 0 14 14"><rect x="1" y="1" width="12" height="12" rx="1" stroke="currentColor" fill="none" stroke-width="1.2"/><line x1="7" y1="1" x2="7" y2="13" stroke="currentColor" stroke-width="1"/></svg>
+      </button>
+      <button class="layout-tab" data-layout="2v" onclick="setLayout('2v')" title="2 Stacked">
+        <svg width="14" height="14" viewBox="0 0 14 14"><rect x="1" y="1" width="12" height="12" rx="1" stroke="currentColor" fill="none" stroke-width="1.2"/><line x1="1" y1="7" x2="13" y2="7" stroke="currentColor" stroke-width="1"/></svg>
+      </button>
+      <button class="layout-tab" data-layout="3t" onclick="setLayout('3t')" title="1 Top + 2 Bottom">
+        <svg width="14" height="14" viewBox="0 0 14 14"><rect x="1" y="1" width="12" height="12" rx="1" stroke="currentColor" fill="none" stroke-width="1.2"/><line x1="1" y1="7" x2="13" y2="7" stroke="currentColor" stroke-width="1"/><line x1="7" y1="7" x2="7" y2="13" stroke="currentColor" stroke-width="1"/></svg>
+      </button>
+      <button class="layout-tab" data-layout="4" onclick="setLayout('4')" title="2x2 Grid">
+        <svg width="14" height="14" viewBox="0 0 14 14"><rect x="1" y="1" width="12" height="12" rx="1" stroke="currentColor" fill="none" stroke-width="1.2"/><line x1="7" y1="1" x2="7" y2="13" stroke="currentColor" stroke-width="1"/><line x1="1" y1="7" x2="13" y2="7" stroke="currentColor" stroke-width="1"/></svg>
+      </button>
+      <select id="layout-select" class="layout-more" onchange="setLayout(this.value)" title="More layouts">
+        <option value="1">Single</option>
+        <option value="2h">2 Side by Side</option>
+        <option value="2v">2 Stacked</option>
+        <option value="3t">1+2 Bottom</option>
+        <option value="3b">2+1 Bottom</option>
+        <option value="3l">1+2 Right</option>
+        <option value="3r">2+1 Right</option>
+        <option value="4">2x2 Grid</option>
+      </select>
+    </div>
     <button class="sync-gear-btn" onclick="openSyncSettings(event)" title="Panel Sync Settings">&#9881;</button>
+    <button class="display-settings-btn" onclick="openDisplaySettings(event)" title="Display Settings"><svg width="14" height="14" viewBox="0 0 16 16"><path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z" fill="currentColor"/><path d="M2 2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V2zm2-1a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H4z" fill="currentColor"/></svg> Display</button>
+    <button class="chart-settings-btn" onclick="openChartSettings(event)" title="Chart Settings"><svg width="14" height="14" viewBox="0 0 16 16"><path fill="currentColor" d="M7.068.727c.243-.97 1.62-.97 1.864 0l.071.286a.96.96 0 001.622.434l.205-.211c.695-.719 1.888-.03 1.613.929l-.079.275a.96.96 0 001.17 1.17l.275-.079c.96-.275 1.648.918.929 1.613l-.211.205a.96.96 0 00.434 1.622l.286.071c.97.243.97 1.62 0 1.864l-.286.071a.96.96 0 00-.434 1.622l.211.205c.719.695.03 1.888-.929 1.613l-.275-.079a.96.96 0 00-1.17 1.17l.079.275c.275.96-.918 1.648-1.613.929l-.205-.211a.96.96 0 00-1.622.434l-.071.286c-.243.97-1.62.97-1.864 0l-.071-.286a.96.96 0 00-1.622-.434l-.205.211c-.695.719-1.888.03-1.613-.929l.079-.275a.96.96 0 00-1.17-1.17l-.275.079c-.96.275-1.648-.918-.929-1.613l.211-.205a.96.96 0 00-.434-1.622l-.286-.071c-.97-.243-.97-1.62 0-1.864l.286-.071a.96.96 0 00.434-1.622l-.211-.205c-.719-.695-.03-1.888.929-1.613l.275.079a.96.96 0 001.17-1.17l-.079-.275c-.275-.96.918-1.648 1.613-.929l.205.211a.96.96 0 001.622-.434l.071-.286zM8 11a3 3 0 100-6 3 3 0 000 6z"/></svg> Session</button>
     <div class="sep"></div>
-    <input type="text" id="tf-input" class="tf-input" list="tf-list" value="5min" onchange="onTFChange()" onkeydown="if(event.key==='Enter'){onTFChange();event.preventDefault();}">
-    <datalist id="tf-list">
-      <option value="1min">
-      <option value="2min">
-      <option value="3min">
-      <option value="5min">
-      <option value="10min">
-      <option value="15min">
-      <option value="30min">
-      <option value="1hour">
-      <option value="2hour">
-      <option value="4hour">
-      <option value="1day">
-    </datalist>
-    <div class="sep"></div>
-    <span class="tgl-item"><input type="checkbox" id="tgl-vol" checked onchange="rerender()"><span class="tgl-name">Vol</span></span>
-    <span class="tgl-item" id="ov-vwap"><input type="checkbox" id="tgl-vwap" checked onchange="rerender()"><span class="tgl-swatch" id="sw-vwap"></span><span class="tgl-name">VWAP</span><span class="tgl-gear" onclick="openOverlaySettings('vwap',event)">&#9881;</span></span>
-    <span class="tgl-item" id="ov-lc"><input type="checkbox" id="tgl-lc" onchange="rerender()"><span class="tgl-swatch" id="sw-lc"></span><span class="tgl-name">LC</span><span class="tgl-gear" onclick="openLCSettings(event)">&#9881;</span></span>
-    <div class="sep"></div>
-    <select id="add-osc"><option value="">+ Indicator...</option><option value="MA">Moving Average</option><option value="RSI">RSI</option><option value="CCI">CCI</option><option value="ADX">ADX</option><option value="WaveTrend">WaveTrend</option><option value="MACD">MACD</option><option value="Stochastic">Stochastic</option></select>
-    <div id="ma-tags"></div>
-    <div id="osc-tags"></div>
+    <span id="tf-wrap" class="tf-wrap">
+      <select id="tf-select" class="tf-input" onchange="onTFSelectChange()">
+        <option value="1min">1m</option>
+        <option value="2min">2m</option>
+        <option value="3min">3m</option>
+        <option value="5min" selected>5m</option>
+        <option value="10min">10m</option>
+        <option value="15min">15m</option>
+        <option value="30min">30m</option>
+        <option value="1hour">1H</option>
+        <option value="2hour">2H</option>
+        <option value="4hour">4H</option>
+        <option value="1day">1D</option>
+        <option value="__custom__">Custom...</option>
+      </select>
+      <input id="tf-custom" class="tf-input tf-custom" style="display:none" placeholder="e.g. 65min" />
+    </span>
   </div>
 
   <div id="charts-area">
@@ -158,37 +290,139 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 </div>
 
 <div id="settings-popup"></div>
+<div id="display-popup"></div>
 
 <script>
 {{SHARED_INDICATORS_JS}}
+{{DRAWING_JS}}
 
 // ============================================================================
 // STATE
 // ============================================================================
 var allSymbols = [];
+var quoteCache = {}; // {symbol: {price, change, changePct}}
+var watchlists = []; // [{id, name, groups: [{id, name, symbols:[], collapsed}]}]
+var activeWLIdx = 0;
 var panels = [], activePanel = 0, currentLayout = '1';
-var oscillators = [], oscCharts = [], syncing = false, crosshairSyncing = false;
+var allLayouts = [], activeLayoutId = null; // multi-layout support
+var syncing = false, crosshairSyncing = false;
+var avwapPicking = null; // {panelIdx, avwapIdx} when picking anchor point
 var OSC_COLORS = ['#e6c07b','#61afef','#c678dd','#56b6c2','#e06c75','#98c379'];
-var oscColorIdx = 0;
 var OSC_DEFAULTS = {
   RSI:{period:14}, CCI:{period:20}, ADX:{period:14},
   WaveTrend:{period:10,period2:21,color2:'#f85149'},
   MACD:{period:12,period2:26,color2:'#f85149'},
   Stochastic:{period:14,period2:3,color2:'#f85149'}
 };
-var OV = {
-  vwap: {color:'#ff9800', lineStyle:0, lineWidth:2},
-  lc:   {color:'#00bcd4', lineStyle:0, lineWidth:2, neighbors:8, maxBarsBack:2000, useVolFilter:true, useRegimeFilter:true, useADXFilter:false, regimeThreshold:-0.1, adxThreshold:20, kernelLookback:8, kernelRelWeight:8, kernelStartBar:25},
-};
-var maOverlays = [];
-var MA_TYPES = ['SMA','EMA','WMA','DEMA','TEMA','HMA'];
+var MA_TYPES = ['SMA','EMA','WMA','DEMA','TEMA','HMA','KAMA','T3','TRIMA','LSMA','SMMA'];
 var MA_COLORS = ['#ff6b9d','#c792ea','#e5c07b','#56b6c2','#98c379','#61afef'];
-var maColorIdx = 0;
+var AVWAP_COLORS = ['#ff9800','#4fc3f7','#ce93d8','#81c784','#ffb74d','#e57373'];
 var activePeriod = '5D';
 var SYNC = { symbol: true, interval: false, crosshair: true, time: false, dateRange: false };
 
-function tgl(id){return document.getElementById(id).checked;}
-function updateSwatches(){Object.keys(OV).forEach(function(k){var sw=document.getElementById('sw-'+k);if(sw)sw.style.background=OV[k].color;});renderMATags();}
+// Display settings (colors + font size)
+var DEFAULT_DISPLAY = {
+  fontSize:11, chartBg:'#0d1117', panelBg:'#161b22', gridColor:'#1c2128',
+  textColor:'#8b949e', candleUp:'#3fb950', candleDown:'#f85149', borderColor:'#30363d'
+};
+var displaySettings = JSON.parse(JSON.stringify(DEFAULT_DISPLAY));
+function applyDisplaySettings() {
+  var r = document.documentElement.style;
+  r.setProperty('--ui-font', displaySettings.fontSize + 'px');
+  r.setProperty('--chart-bg', displaySettings.chartBg);
+  r.setProperty('--panel-bg', displaySettings.panelBg);
+  r.setProperty('--grid-lines', displaySettings.gridColor);
+  r.setProperty('--text-dim', displaySettings.textColor);
+  r.setProperty('--candle-up', displaySettings.candleUp);
+  r.setProperty('--candle-down', displaySettings.candleDown);
+  r.setProperty('--border', displaySettings.borderColor);
+}
+function getChartOpts(w,h) {
+  var ds = displaySettings;
+  return {width:w,height:h,layout:{background:{type:'solid',color:ds.chartBg},textColor:ds.textColor,fontSize:ds.fontSize},grid:{vertLines:{color:ds.gridColor},horzLines:{color:ds.gridColor}},crosshair:{mode:LightweightCharts.CrosshairMode.Normal},handleScroll:{mouseWheel:true,pressedMouseMove:true,horzTouchDrag:true,vertTouchDrag:false},handleScale:{mouseWheel:true,pinch:true,axisPressedMouseMove:{time:false,price:true},axisDoubleClickReset:{time:true,price:true}},timeScale:{timeVisible:true,secondsVisible:false,borderColor:ds.borderColor},rightPriceScale:{borderColor:ds.borderColor}};
+}
+function getCandleOpts() {
+  var ds = displaySettings;
+  return {upColor:ds.candleUp,downColor:ds.candleDown,borderUpColor:ds.candleUp,borderDownColor:ds.candleDown,wickUpColor:ds.candleUp,wickDownColor:ds.candleDown};
+}
+
+// ============================================================================
+// SESSION / CHART SETTINGS
+// ============================================================================
+var SESSION_PRESETS = {
+  stocks: [
+    {value:'extended',  label:'Extended (4:00-20:00)'},
+    {value:'regular',   label:'Regular (9:30-16:00)'},
+    {value:'premarket', label:'Pre-Market (4:00-9:30)'},
+    {value:'afterhours',label:'After-Hours (16:00-20:00)'}
+  ],
+  futures: [
+    {value:'extended',label:'Extended / Globex'},
+    {value:'regular', label:'Regular (9:30-16:00)'},
+    {value:'overnight',label:'Overnight (18:00-9:30)'}
+  ],
+  forex: [
+    {value:'24h', label:'24 Hours'}
+  ]
+};
+function getActiveSession(){var p=panels[activePanel];return p?p.session:'extended';}
+function getActiveAssetClass(){var p=panels[activePanel];return p?p.assetClass:'stocks';}
+function filterBarsBySession(bars, session){
+  if(!bars||!bars.length||session==='extended'||session==='24h') return bars;
+  return bars.filter(function(b){
+    var d=new Date(b.time*1000);
+    var m=d.getUTCHours()*60+d.getUTCMinutes();
+    switch(session){
+      case 'regular':    return m>=570&&m<960;  // 9:30-16:00
+      case 'premarket':  return m>=240&&m<570;  // 4:00-9:30
+      case 'afterhours': return m>=960&&m<1200; // 16:00-20:00
+      case 'overnight':  return m>=1080||m<570; // 18:00-9:30
+      default: return true;
+    }
+  });
+}
+var _csPopup=null;
+function openChartSettings(e){
+  e.stopPropagation();
+  if(_csPopup){closeChartSettings();return;}
+  var popup=document.createElement('div');popup.className='cs-popup';popup.id='cs-popup';
+  var ac=getActiveAssetClass(), sess=getActiveSession();
+  var presets=SESSION_PRESETS[ac]||SESSION_PRESETS.stocks;
+  var html='<div class="cs-title">Panel '+(activePanel+1)+' Session</div>';
+  html+='<div class="cs-row"><span class="cs-label">Asset</span><select class="cs-select" onchange="onAssetClassChange(this.value)">';
+  ['stocks','futures','forex'].forEach(function(a){html+='<option value="'+a+'"'+(ac===a?' selected':'')+'>'+a.charAt(0).toUpperCase()+a.slice(1)+'</option>';});
+  html+='</select></div>';
+  html+='<div class="cs-row"><span class="cs-label">Session</span><select id="cs-session" class="cs-select" onchange="onSessionChange(this.value)">';
+  presets.forEach(function(p){html+='<option value="'+p.value+'"'+(sess===p.value?' selected':'')+'>'+p.label+'</option>';});
+  html+='</select></div>';
+  html+='<div class="cs-hint">Filters bars for the active panel only</div>';
+  popup.innerHTML=html;
+  document.body.appendChild(popup);
+  var rect=e.target.closest('button').getBoundingClientRect();
+  popup.style.left=Math.min(rect.left,window.innerWidth-260)+'px';
+  popup.style.top=(rect.bottom+4)+'px';
+  _csPopup=popup;
+  setTimeout(function(){document.addEventListener('mousedown',_csOutsideClick);},50);
+}
+function _csOutsideClick(e){if(_csPopup&&!_csPopup.contains(e.target))closeChartSettings();}
+function closeChartSettings(){
+  if(_csPopup&&_csPopup.parentNode)_csPopup.parentNode.removeChild(_csPopup);
+  _csPopup=null;document.removeEventListener('mousedown',_csOutsideClick);
+}
+function onAssetClassChange(v){
+  var p=panels[activePanel];if(!p)return;
+  p.assetClass=v;
+  var presets=SESSION_PRESETS[v]||SESSION_PRESETS.stocks;
+  p.session=presets[0].value;
+  var sel=document.getElementById('cs-session');
+  if(sel){sel.innerHTML='';presets.forEach(function(pr){var o=document.createElement('option');o.value=pr.value;o.textContent=pr.label;sel.appendChild(o);});sel.value=p.session;}
+  saveLayout();rerenderPanel(activePanel);
+}
+function onSessionChange(v){
+  var p=panels[activePanel];if(!p)return;
+  p.session=v;
+  saveLayout();rerenderPanel(activePanel);
+}
 
 // ============================================================================
 // LINE STYLE SVG ICONS
@@ -209,46 +443,47 @@ var WIDTH_SVGS = [
 ];
 
 // ============================================================================
-// SETTINGS POPUP
+// SETTINGS POPUP (panel-aware)
 // ============================================================================
 var popupTarget = null;
 
-function openOscSettings(idx, evt) {
+function openPanelOscSettings(panelIdx, idx, evt) {
   evt.stopPropagation();
-  popupTarget = {type:'osc', idx:idx};
-  renderPopup(oscillators[idx].type + ' Settings', oscillators[idx], evt);
+  popupTarget = {type:'osc', panelIdx:panelIdx, idx:idx};
+  renderPopup(panels[panelIdx].oscillators[idx].type + ' Settings', panels[panelIdx].oscillators[idx], evt);
 }
-function openOverlaySettings(key, evt) {
+function openPanelOverlaySettings(panelIdx, key, evt) {
   evt.stopPropagation();
-  popupTarget = {type:'overlay', key:key};
+  popupTarget = {type:'overlay', panelIdx:panelIdx, key:key};
   var names = {vwap:'VWAP'};
-  renderPopup((names[key]||key) + ' Settings', OV[key], evt);
+  renderPopup((names[key]||key) + ' Settings', panels[panelIdx].overlays[key], evt);
 }
-function openLCSettings(evt) {
+function openPanelLCSettings(panelIdx, evt) {
   evt.stopPropagation();
-  popupTarget = {type:'lc'};
-  var s = OV.lc;
+  popupTarget = {type:'lc', panelIdx:panelIdx};
+  var s = panels[panelIdx].overlays.lc;
   var popup = document.getElementById('settings-popup');
+  var pi = panelIdx;
   var html = '<div class="sp-header"><span class="sp-title">Lorentzian Classification</span><span class="sp-close" onclick="closeSettings()">&times;</span></div>';
   html += '<div class="sp-section"><div class="sp-section-title">KNN</div>';
-  html += '<div class="sp-row"><span class="sp-label">K</span><input type="number" class="sp-num" value="'+s.neighbors+'" min="1" max="100" onchange="OV.lc.neighbors=+this.value;rerender()"></div>';
-  html += '<div class="sp-row"><span class="sp-label">Max Bars</span><input type="number" class="sp-num" value="'+s.maxBarsBack+'" min="100" max="5000" style="width:60px" onchange="OV.lc.maxBarsBack=+this.value;rerender()"></div>';
+  html += '<div class="sp-row"><span class="sp-label">K</span><input type="number" class="sp-num" value="'+s.neighbors+'" min="1" max="100" onchange="popSetLCParam(\'neighbors\',+this.value)"></div>';
+  html += '<div class="sp-row"><span class="sp-label">Max Bars</span><input type="number" class="sp-num" value="'+s.maxBarsBack+'" min="100" max="5000" style="width:60px" onchange="popSetLCParam(\'maxBarsBack\',+this.value)"></div>';
   html += '</div>';
   html += '<div class="sp-section"><div class="sp-section-title">Filters</div>';
-  html += '<div class="sp-row"><label style="display:flex;align-items:center;gap:4px;cursor:pointer;color:#c9d1d9;font-size:11px"><input type="checkbox" '+(s.useVolFilter?'checked':'')+' onchange="OV.lc.useVolFilter=this.checked;rerender()" style="accent-color:#58a6ff">Volatility</label></div>';
-  html += '<div class="sp-row"><label style="display:flex;align-items:center;gap:4px;cursor:pointer;color:#c9d1d9;font-size:11px"><input type="checkbox" '+(s.useRegimeFilter?'checked':'')+' onchange="OV.lc.useRegimeFilter=this.checked;rerender()" style="accent-color:#58a6ff">Regime</label></div>';
-  html += '<div class="sp-row"><label style="display:flex;align-items:center;gap:4px;cursor:pointer;color:#c9d1d9;font-size:11px"><input type="checkbox" '+(s.useADXFilter?'checked':'')+' onchange="OV.lc.useADXFilter=this.checked;rerender()" style="accent-color:#58a6ff">ADX &gt; <input type="number" class="sp-num" value="'+s.adxThreshold+'" min="1" max="100" style="width:40px;margin-left:4px" onchange="OV.lc.adxThreshold=+this.value;rerender()" onclick="event.stopPropagation()"></label></div>';
+  html += '<div class="sp-row"><label style="display:flex;align-items:center;gap:4px;cursor:pointer;color:#c9d1d9;font-size:11px"><input type="checkbox" '+(s.useVolFilter?'checked':'')+' onchange="popSetLCParam(\'useVolFilter\',this.checked)" style="accent-color:#58a6ff">Volatility</label></div>';
+  html += '<div class="sp-row"><label style="display:flex;align-items:center;gap:4px;cursor:pointer;color:#c9d1d9;font-size:11px"><input type="checkbox" '+(s.useRegimeFilter?'checked':'')+' onchange="popSetLCParam(\'useRegimeFilter\',this.checked)" style="accent-color:#58a6ff">Regime</label></div>';
+  html += '<div class="sp-row"><label style="display:flex;align-items:center;gap:4px;cursor:pointer;color:#c9d1d9;font-size:11px"><input type="checkbox" '+(s.useADXFilter?'checked':'')+' onchange="popSetLCParam(\'useADXFilter\',this.checked)" style="accent-color:#58a6ff">ADX &gt; <input type="number" class="sp-num" value="'+s.adxThreshold+'" min="1" max="100" style="width:40px;margin-left:4px" onchange="popSetLCParam(\'adxThreshold\',+this.value)" onclick="event.stopPropagation()"></label></div>';
   html += '</div>';
   html += '<div class="sp-section"><div class="sp-section-title">Kernel Regression</div>';
-  html += '<div class="sp-row"><span class="sp-label">Lookback</span><input type="number" class="sp-num" value="'+s.kernelLookback+'" min="1" max="100" onchange="OV.lc.kernelLookback=+this.value;rerender()"></div>';
-  html += '<div class="sp-row"><span class="sp-label">Weight</span><input type="number" class="sp-num" value="'+s.kernelRelWeight+'" min="1" max="100" onchange="OV.lc.kernelRelWeight=+this.value;rerender()"></div>';
+  html += '<div class="sp-row"><span class="sp-label">Lookback</span><input type="number" class="sp-num" value="'+s.kernelLookback+'" min="1" max="100" onchange="popSetLCParam(\'kernelLookback\',+this.value)"></div>';
+  html += '<div class="sp-row"><span class="sp-label">Weight</span><input type="number" class="sp-num" value="'+s.kernelRelWeight+'" min="1" max="100" onchange="popSetLCParam(\'kernelRelWeight\',+this.value)"></div>';
   html += '</div>';
   html += '<div class="sp-section"><div class="sp-section-title">Kernel Line</div>';
-  html += '<div class="sp-row"><span class="sp-label">Color</span><input type="color" class="sp-color" value="'+s.color+'" onchange="OV.lc.color=this.value;updateSwatches();rerender()"></div>';
+  html += '<div class="sp-row"><span class="sp-label">Color</span><input type="color" class="sp-color" value="'+s.color+'" onchange="popSetLCParam(\'color\',this.value)"></div>';
   html += '<div class="sp-row"><span class="sp-label">Style</span><div class="sp-btn-group">';
-  for (var i = 0; i < 5; i++) html += '<div class="sp-btn'+(s.lineStyle===i?' active':'')+'" onclick="OV.lc.lineStyle='+i+';rerender();openLCSettings({stopPropagation:function(){},target:this})">'+STYLE_SVGS[i]+'</div>';
+  for (var i = 0; i < 5; i++) html += '<div class="sp-btn'+(s.lineStyle===i?' active':'')+'" onclick="popSetLCParam(\'lineStyle\','+i+')">'+STYLE_SVGS[i]+'</div>';
   html += '</div></div><div class="sp-row"><span class="sp-label">Width</span><div class="sp-btn-group">';
-  for (var w = 1; w <= 4; w++) html += '<div class="sp-btn'+(s.lineWidth===w?' active':'')+'" onclick="OV.lc.lineWidth='+w+';rerender();openLCSettings({stopPropagation:function(){},target:this})">'+WIDTH_SVGS[w-1]+'</div>';
+  for (var w = 1; w <= 4; w++) html += '<div class="sp-btn'+(s.lineWidth===w?' active':'')+'" onclick="popSetLCParam(\'lineWidth\','+w+')">'+WIDTH_SVGS[w-1]+'</div>';
   html += '</div></div></div>';
   popup.innerHTML = html; popup.style.display = 'block';
   var rect = (evt.target || evt.srcElement).getBoundingClientRect();
@@ -257,14 +492,27 @@ function openLCSettings(evt) {
   if (y + popup.offsetHeight > window.innerHeight) y = rect.top - popup.offsetHeight - 6;
   popup.style.left = Math.max(5, x) + 'px'; popup.style.top = Math.max(5, y) + 'px';
 }
+function popSetLCParam(key, val) {
+  if (!popupTarget || popupTarget.type !== 'lc') return;
+  var pi = popupTarget.panelIdx;
+  panels[pi].overlays.lc[key] = val;
+  refreshPanelIndicatorBar(pi);
+  rerenderPanel(pi);
+  // Re-open to refresh active states
+  openPanelLCSettings(pi, {stopPropagation:function(){}, target:document.querySelector('#settings-popup')});
+}
 function renderPopup(title, settings, evt) {
   var popup = document.getElementById('settings-popup');
   var html = '<div class="sp-header"><span class="sp-title">' + title + '</span><span class="sp-close" onclick="closeSettings()">&times;</span></div>';
   if (popupTarget.type === 'osc') {
-    var osc = oscillators[popupTarget.idx];
+    var osc = panels[popupTarget.panelIdx].oscillators[popupTarget.idx];
     html += '<div class="sp-section"><div class="sp-section-title">Parameters</div>';
     html += '<div class="sp-row"><span class="sp-label">Period</span><input type="number" class="sp-num" value="'+osc.period+'" min="2" max="200" onchange="popSetPeriod(this.value)"></div>';
     if (osc.period2 !== undefined) html += '<div class="sp-row"><span class="sp-label">Period 2</span><input type="number" class="sp-num" value="'+osc.period2+'" min="2" max="200" onchange="popSetPeriod2(this.value)"></div>';
+    var oscSrc = osc.source || 'close';
+    html += '<div class="sp-row"><span class="sp-label">Source</span><select style="background:#0d1117;border:1px solid #30363d;color:#c9d1d9;border-radius:4px;padding:3px 6px;font-size:12px" onchange="panels['+popupTarget.panelIdx+'].oscillators['+popupTarget.idx+'].source=this.value;rerenderPanel('+popupTarget.panelIdx+')">';
+    DATA_SOURCES.forEach(function(ds) { html += '<option value="'+ds+'"'+(oscSrc===ds?' selected':'')+'>'+ds+'</option>'; });
+    html += '</select></div>';
     html += '</div>';
   }
   html += '<div class="sp-section"><div class="sp-section-title">Line</div>';
@@ -274,8 +522,8 @@ function renderPopup(title, settings, evt) {
   html += '</div></div><div class="sp-row"><span class="sp-label">Width</span><div class="sp-btn-group">';
   for (var w = 1; w <= 4; w++) html += '<div class="sp-btn'+(settings.lineWidth===w?' active':'')+'" onclick="popSetWidth('+w+')">'+WIDTH_SVGS[w-1]+'</div>';
   html += '</div></div></div>';
-  if (popupTarget.type === 'osc' && oscillators[popupTarget.idx].color2) {
-    html += '<div class="sp-section"><div class="sp-section-title">Line 2</div><div class="sp-row"><span class="sp-label">Color</span><input type="color" class="sp-color" value="'+oscillators[popupTarget.idx].color2+'" onchange="popSetColor2(this.value)"></div></div>';
+  if (popupTarget.type === 'osc' && panels[popupTarget.panelIdx].oscillators[popupTarget.idx].color2) {
+    html += '<div class="sp-section"><div class="sp-section-title">Line 2</div><div class="sp-row"><span class="sp-label">Color</span><input type="color" class="sp-color" value="'+panels[popupTarget.panelIdx].oscillators[popupTarget.idx].color2+'" onchange="popSetColor2(this.value)"></div></div>';
   }
   popup.innerHTML = html; popup.style.display = 'block';
   var rect = (evt.target || evt.srcElement).getBoundingClientRect();
@@ -321,74 +569,59 @@ function closeSettings(){document.getElementById('settings-popup').style.display
 document.addEventListener('mousedown', function(e) {
   var popup = document.getElementById('settings-popup');
   if (popup.style.display === 'block' && !popup.contains(e.target)) {
-    if (e.target.classList.contains('osc-gear') || e.target.classList.contains('tgl-gear') || e.target.classList.contains('sync-gear-btn')) return;
+    if (e.target.classList.contains('osc-gear') || e.target.classList.contains('tgl-gear') || e.target.classList.contains('sync-gear-btn') || e.target.classList.contains('ip-gear')) return;
     closeSettings();
   }
-});
-function _getTarget(){if(!popupTarget)return null;return popupTarget.type==='osc'?oscillators[popupTarget.idx]:OV[popupTarget.key];}
-function _rePopup(){if(popupTarget){var t=_getTarget();renderPopup(document.querySelector('#settings-popup .sp-title').textContent,t,{target:document.querySelector('#settings-popup'),stopPropagation:function(){}});}}
-function popSetColor(v){var t=_getTarget();if(!t)return;t.color=v;updateSwatches();renderOscTags();rerender();_rePopup();}
-function popSetColor2(v){if(popupTarget&&popupTarget.type==='osc'){oscillators[popupTarget.idx].color2=v;rerender();}}
-function popSetStyle(v){var t=_getTarget();if(!t)return;t.lineStyle=v;rerender();_rePopup();}
-function popSetWidth(v){var t=_getTarget();if(!t)return;t.lineWidth=v;rerender();_rePopup();}
-function popSetPeriod(v){if(popupTarget&&popupTarget.type==='osc'){oscillators[popupTarget.idx].period=parseInt(v)||14;renderOscTags();rerender();}}
-function popSetPeriod2(v){if(popupTarget&&popupTarget.type==='osc'){oscillators[popupTarget.idx].period2=parseInt(v)||21;renderOscTags();rerender();}}
-
-// ============================================================================
-// OSCILLATOR ADD / REMOVE
-// ============================================================================
-document.getElementById('add-osc').addEventListener('change', function() {
-  var type = this.value; if (!type) return; this.value = '';
-  if (type === 'MA') {
-    var ma = {maType:'EMA', period:20, color:MA_COLORS[maColorIdx%MA_COLORS.length], lineStyle:0, lineWidth:1};
-    maColorIdx++; maOverlays.push(ma); renderMATags(); rerender();
-    return;
-  }
-  var def = OSC_DEFAULTS[type] || {};
-  var osc = {type:type, period:def.period||14, color:OSC_COLORS[oscColorIdx%OSC_COLORS.length], color2:def.color2||null, lineStyle:0, lineWidth:2};
-  if (def.period2) osc.period2 = def.period2;
-  oscColorIdx++; oscillators.push(osc); renderOscTags(); rerender();
-});
-function renderOscTags() {
-  var el = document.getElementById('osc-tags'); el.innerHTML = '';
-  oscillators.forEach(function(osc, idx) {
-    var tag = document.createElement('span'); tag.className = 'osc-tag'; tag.style.borderColor = osc.color;
-    var pStr = osc.period + (osc.period2 !== undefined ? ','+osc.period2 : '');
-    tag.innerHTML = '<span class="osc-dot" style="background:'+osc.color+'"></span><span class="osc-name">'+osc.type+' ('+pStr+')</span><span class="osc-gear" onclick="openOscSettings('+idx+',event)">&#9881;</span><span class="remove" onclick="removeOsc('+idx+')">&times;</span>';
-    el.appendChild(tag);
+  // Close indicator panels if clicking outside
+  var openPanels = document.querySelectorAll('.ind-panel.open');
+  openPanels.forEach(function(ip) {
+    if (!ip.contains(e.target) && !e.target.closest('.ind-btn')) {
+      ip.classList.remove('open');
+      var pidx = ip.getAttribute('data-panel');
+      if (pidx !== null && panels[pidx] && panels[pidx].el) {
+        var btn = panels[pidx].el.querySelector('.ind-btn');
+        if (btn) btn.classList.remove('active');
+      }
+    }
   });
+});
+function _getTarget(){
+  if(!popupTarget)return null;
+  if(popupTarget.type==='osc') return panels[popupTarget.panelIdx].oscillators[popupTarget.idx];
+  if(popupTarget.type==='overlay') return panels[popupTarget.panelIdx].overlays[popupTarget.key];
+  return null;
 }
-function removeOsc(idx){closeSettings();oscillators.splice(idx,1);renderOscTags();rerender();}
+function _rePopup(){if(popupTarget && popupTarget.type !== 'lc' && popupTarget.type !== 'sync' && popupTarget.type !== 'ma'){var t=_getTarget();if(t)renderPopup(document.querySelector('#settings-popup .sp-title').textContent,t,{target:document.querySelector('#settings-popup'),stopPropagation:function(){}});}}
+function popSetColor(v){var t=_getTarget();if(!t)return;t.color=v;if(popupTarget)refreshPanelIndicatorBar(popupTarget.panelIdx);rerenderPanel(popupTarget.panelIdx);_rePopup();}
+function popSetColor2(v){if(popupTarget&&popupTarget.type==='osc'){panels[popupTarget.panelIdx].oscillators[popupTarget.idx].color2=v;rerenderPanel(popupTarget.panelIdx);}}
+function popSetStyle(v){var t=_getTarget();if(!t)return;t.lineStyle=v;rerenderPanel(popupTarget.panelIdx);_rePopup();}
+function popSetWidth(v){var t=_getTarget();if(!t)return;t.lineWidth=v;rerenderPanel(popupTarget.panelIdx);_rePopup();}
+function popSetPeriod(v){if(popupTarget&&popupTarget.type==='osc'){panels[popupTarget.panelIdx].oscillators[popupTarget.idx].period=parseInt(v)||14;refreshPanelIndicatorBar(popupTarget.panelIdx);rerenderPanel(popupTarget.panelIdx);}}
+function popSetPeriod2(v){if(popupTarget&&popupTarget.type==='osc'){panels[popupTarget.panelIdx].oscillators[popupTarget.idx].period2=parseInt(v)||21;refreshPanelIndicatorBar(popupTarget.panelIdx);rerenderPanel(popupTarget.panelIdx);}}
 
-// MA overlay tags
-function renderMATags() {
-  var el = document.getElementById('ma-tags'); if (!el) return; el.innerHTML = '';
-  maOverlays.forEach(function(ma, idx) {
-    var tag = document.createElement('span'); tag.className = 'osc-tag'; tag.style.borderColor = ma.color;
-    tag.innerHTML = '<span class="osc-dot" style="background:'+ma.color+'"></span><span class="osc-name">'+ma.maType+' ('+ma.period+')</span><span class="osc-gear" onclick="openMASettings('+idx+',event)">&#9881;</span><span class="remove" onclick="removeMA('+idx+')">&times;</span>';
-    el.appendChild(tag);
-  });
-}
-function removeMA(idx){closeSettings();maOverlays.splice(idx,1);renderMATags();rerender();}
-function openMASettings(idx, evt) {
+function openPanelMASettings(panelIdx, idx, evt) {
   evt.stopPropagation();
-  popupTarget = {type:'ma', idx:idx};
-  var ma = maOverlays[idx];
+  popupTarget = {type:'ma', panelIdx:panelIdx, idx:idx};
+  var ma = panels[panelIdx].maOverlays[idx];
   var popup = document.getElementById('settings-popup');
   var html = '<div class="sp-header"><span class="sp-title">Moving Average</span><span class="sp-close" onclick="closeSettings()">&times;</span></div>';
   html += '<div class="sp-section"><div class="sp-section-title">Type</div>';
-  html += '<div class="sp-row"><select style="background:#0d1117;border:1px solid #30363d;color:#c9d1d9;border-radius:4px;padding:3px 6px;font-size:12px" onchange="maOverlays['+idx+'].maType=this.value;renderMATags();rerender();openMASettings('+idx+',{stopPropagation:function(){},target:document.querySelector(\'#settings-popup\')})">';
+  html += '<div class="sp-row"><select style="background:#0d1117;border:1px solid #30363d;color:#c9d1d9;border-radius:4px;padding:3px 6px;font-size:12px" onchange="panels['+panelIdx+'].maOverlays['+idx+'].maType=this.value;refreshPanelIndicatorBar('+panelIdx+');rerenderPanel('+panelIdx+');openPanelMASettings('+panelIdx+','+idx+',{stopPropagation:function(){},target:document.querySelector(\'#settings-popup\')})">';
   MA_TYPES.forEach(function(t) { html += '<option value="'+t+'"'+(ma.maType===t?' selected':'')+'>'+t+'</option>'; });
   html += '</select></div></div>';
   html += '<div class="sp-section"><div class="sp-section-title">Parameters</div>';
-  html += '<div class="sp-row"><span class="sp-label">Period</span><input type="number" class="sp-num" value="'+ma.period+'" min="2" max="500" onchange="maOverlays['+idx+'].period=+this.value;renderMATags();rerender()"></div>';
+  html += '<div class="sp-row"><span class="sp-label">Period</span><input type="number" class="sp-num" value="'+ma.period+'" min="2" max="500" onchange="panels['+panelIdx+'].maOverlays['+idx+'].period=+this.value;refreshPanelIndicatorBar('+panelIdx+');rerenderPanel('+panelIdx+')"></div>';
+  var src = ma.source || 'close';
+  html += '<div class="sp-row"><span class="sp-label">Source</span><select style="background:#0d1117;border:1px solid #30363d;color:#c9d1d9;border-radius:4px;padding:3px 6px;font-size:12px" onchange="panels['+panelIdx+'].maOverlays['+idx+'].source=this.value;rerenderPanel('+panelIdx+')">';
+  DATA_SOURCES.forEach(function(ds) { html += '<option value="'+ds+'"'+(src===ds?' selected':'')+'>'+ds+'</option>'; });
+  html += '</select></div>';
   html += '</div>';
   html += '<div class="sp-section"><div class="sp-section-title">Line</div>';
-  html += '<div class="sp-row"><span class="sp-label">Color</span><input type="color" class="sp-color" value="'+ma.color+'" onchange="maOverlays['+idx+'].color=this.value;renderMATags();rerender()"></div>';
+  html += '<div class="sp-row"><span class="sp-label">Color</span><input type="color" class="sp-color" value="'+ma.color+'" onchange="panels['+panelIdx+'].maOverlays['+idx+'].color=this.value;refreshPanelIndicatorBar('+panelIdx+');rerenderPanel('+panelIdx+')"></div>';
   html += '<div class="sp-row"><span class="sp-label">Style</span><div class="sp-btn-group">';
-  for (var i = 0; i < 5; i++) html += '<div class="sp-btn'+(ma.lineStyle===i?' active':'')+'" onclick="maOverlays['+idx+'].lineStyle='+i+';rerender();openMASettings('+idx+',{stopPropagation:function(){},target:document.querySelector(\'#settings-popup\')})">'+STYLE_SVGS[i]+'</div>';
+  for (var i = 0; i < 5; i++) html += '<div class="sp-btn'+(ma.lineStyle===i?' active':'')+'" onclick="panels['+panelIdx+'].maOverlays['+idx+'].lineStyle='+i+';rerenderPanel('+panelIdx+');openPanelMASettings('+panelIdx+','+idx+',{stopPropagation:function(){},target:document.querySelector(\'#settings-popup\')})">'+STYLE_SVGS[i]+'</div>';
   html += '</div></div><div class="sp-row"><span class="sp-label">Width</span><div class="sp-btn-group">';
-  for (var w = 1; w <= 4; w++) html += '<div class="sp-btn'+(ma.lineWidth===w?' active':'')+'" onclick="maOverlays['+idx+'].lineWidth='+w+';rerender();openMASettings('+idx+',{stopPropagation:function(){},target:document.querySelector(\'#settings-popup\')})">'+WIDTH_SVGS[w-1]+'</div>';
+  for (var w = 1; w <= 4; w++) html += '<div class="sp-btn'+(ma.lineWidth===w?' active':'')+'" onclick="panels['+panelIdx+'].maOverlays['+idx+'].lineWidth='+w+';rerenderPanel('+panelIdx+');openPanelMASettings('+panelIdx+','+idx+',{stopPropagation:function(){},target:document.querySelector(\'#settings-popup\')})">'+WIDTH_SVGS[w-1]+'</div>';
   html += '</div></div></div>';
   popup.innerHTML = html; popup.style.display = 'block';
   var rect = (evt.target || evt.srcElement).getBoundingClientRect();
@@ -396,6 +629,243 @@ function openMASettings(idx, evt) {
   var y = rect.bottom + 6;
   if (y + popup.offsetHeight > window.innerHeight) y = rect.top - popup.offsetHeight - 6;
   popup.style.left = Math.max(5, x) + 'px'; popup.style.top = Math.max(5, y) + 'px';
+}
+
+function openPanelAvwapSettings(panelIdx, avIdx, evt) {
+  evt.stopPropagation();
+  popupTarget = {type:'avwap', panelIdx:panelIdx, idx:avIdx};
+  var av = panels[panelIdx].anchorVwaps[avIdx];
+  var popup = document.getElementById('settings-popup');
+  var anchorLabel = av.anchorTime ? new Date(av.anchorTime*1000).toLocaleString('en-US',{timeZone:'UTC'}) : 'Not set';
+  var html = '<div class="sp-header"><span class="sp-title">Anchor VWAP</span><span class="sp-close" onclick="closeSettings()">&times;</span></div>';
+  html += '<div class="sp-section"><div class="sp-section-title">Anchor</div>';
+  html += '<div class="sp-row"><span class="sp-label">From</span><span style="color:#c9d1d9;font-size:11px;flex:1">'+anchorLabel+'</span></div>';
+  html += '<div class="sp-row"><button onclick="closeSettings();startAvwapPick('+panelIdx+','+avIdx+')" style="width:100%;padding:5px;background:#21262d;border:1px solid #30363d;color:#c9d1d9;border-radius:4px;cursor:pointer;font-size:11px">Pick New Anchor</button></div>';
+  html += '</div>';
+  html += '<div class="sp-section"><div class="sp-section-title">Line</div>';
+  html += '<div class="sp-row"><span class="sp-label">Color</span><input type="color" class="sp-color" value="'+av.color+'" onchange="panels['+panelIdx+'].anchorVwaps['+avIdx+'].color=this.value;refreshPanelIndicatorBar('+panelIdx+');rerenderPanel('+panelIdx+')"></div>';
+  html += '<div class="sp-row"><span class="sp-label">Style</span><div class="sp-btn-group">';
+  for (var i = 0; i < 5; i++) html += '<div class="sp-btn'+(av.lineStyle===i?' active':'')+'" onclick="panels['+panelIdx+'].anchorVwaps['+avIdx+'].lineStyle='+i+';rerenderPanel('+panelIdx+');openPanelAvwapSettings('+panelIdx+','+avIdx+',{stopPropagation:function(){},target:document.querySelector(\'#settings-popup\')})">'+STYLE_SVGS[i]+'</div>';
+  html += '</div></div><div class="sp-row"><span class="sp-label">Width</span><div class="sp-btn-group">';
+  for (var w = 1; w <= 4; w++) html += '<div class="sp-btn'+(av.lineWidth===w?' active':'')+'" onclick="panels['+panelIdx+'].anchorVwaps['+avIdx+'].lineWidth='+w+';rerenderPanel('+panelIdx+');openPanelAvwapSettings('+panelIdx+','+avIdx+',{stopPropagation:function(){},target:document.querySelector(\'#settings-popup\')})">'+WIDTH_SVGS[w-1]+'</div>';
+  html += '</div></div></div>';
+  popup.innerHTML = html; popup.style.display = 'block';
+  var rect = (evt.target || evt.srcElement).getBoundingClientRect();
+  var x = Math.min(rect.left, window.innerWidth - 270);
+  var y = rect.bottom + 6;
+  if (y + popup.offsetHeight > window.innerHeight) y = rect.top - popup.offsetHeight - 6;
+  popup.style.left = Math.max(5, x) + 'px'; popup.style.top = Math.max(5, y) + 'px';
+}
+
+// ============================================================================
+// PER-PANEL INDICATOR ADD / REMOVE
+// ============================================================================
+function addPanelIndicator(idx, sel) {
+  var type = sel.value; if (!type) return; sel.value = '';
+  var p = panels[idx];
+  if (type === 'MA') {
+    var ma = {maType:'EMA', period:20, source:'close', color:MA_COLORS[p.maColorIdx % MA_COLORS.length], lineStyle:0, lineWidth:1};
+    p.maColorIdx++; p.maOverlays.push(ma);
+    refreshPanelIndicatorBar(idx); rerenderPanel(idx);
+    return;
+  }
+  if (type === 'AVWAP') {
+    var avwap = {anchorTime:null, color:AVWAP_COLORS[p.avwapColorIdx % AVWAP_COLORS.length], lineStyle:0, lineWidth:2};
+    p.avwapColorIdx++;
+    p.anchorVwaps.push(avwap);
+    var avIdx = p.anchorVwaps.length - 1;
+    // Enter pick mode: user clicks chart to set anchor
+    closeIndicatorPanel(idx);
+    startAvwapPick(idx, avIdx);
+    refreshPanelIndicatorBar(idx);
+    return;
+  }
+  var def = OSC_DEFAULTS[type] || {};
+  var osc = {type:type, period:def.period||14, source:'close', color:OSC_COLORS[p.oscColorIdx % OSC_COLORS.length], color2:def.color2||null, lineStyle:0, lineWidth:2};
+  if (def.period2) osc.period2 = def.period2;
+  p.oscColorIdx++; p.oscillators.push(osc);
+  refreshPanelIndicatorBar(idx); rerenderPanel(idx);
+}
+function startAvwapPick(panelIdx, avIdx) {
+  avwapPicking = {panelIdx:panelIdx, avwapIdx:avIdx};
+  var p = panels[panelIdx];
+  if (p && p.el) p.el.querySelector('.panel-chart').style.cursor = 'crosshair';
+}
+function cancelAvwapPick() {
+  if (!avwapPicking) return;
+  var p = panels[avwapPicking.panelIdx];
+  if (p && p.el) p.el.querySelector('.panel-chart').style.cursor = '';
+  avwapPicking = null;
+}
+function removePanelAvwap(idx, avIdx) {
+  closeSettings();
+  panels[idx].anchorVwaps.splice(avIdx, 1);
+  refreshPanelIndicatorBar(idx); rerenderPanel(idx);
+}
+function removePanelOsc(idx, oscIdx) {
+  closeSettings();
+  panels[idx].oscillators.splice(oscIdx, 1);
+  refreshPanelIndicatorBar(idx); rerenderPanel(idx);
+}
+function removePanelMA(idx, maIdx) {
+  closeSettings();
+  panels[idx].maOverlays.splice(maIdx, 1);
+  refreshPanelIndicatorBar(idx); rerenderPanel(idx);
+}
+
+// ============================================================================
+// PER-PANEL INDICATOR OVERLAY PANEL
+// ============================================================================
+function togglePanelOverlay(idx, key, checked) {
+  panels[idx].overlays[key].enabled = checked;
+  rerenderPanel(idx);
+}
+function getIndicatorCount(idx) {
+  var p = panels[idx]; if (!p) return 0;
+  var n = p.maOverlays.length + p.oscillators.length + p.anchorVwaps.length;
+  if (p.overlays.vwap.enabled) n++;
+  if (p.overlays.lc.enabled) n++;
+  if (p.overlays.vol.enabled) n++;
+  return n;
+}
+function getIndicatorCountBadge(idx) {
+  var n = getIndicatorCount(idx);
+  return n > 0 ? ' <span class="ind-count">' + n + '</span>' : '';
+}
+function toggleIndicatorPanel(idx) {
+  var panel = document.getElementById('ind-panel-' + idx);
+  if (!panel) return;
+  var isOpen = panel.classList.contains('open');
+  // Close all other panels first
+  document.querySelectorAll('.ind-panel.open').forEach(function(p) { p.classList.remove('open'); });
+  document.querySelectorAll('.ind-btn.active').forEach(function(b) { b.classList.remove('active'); });
+  if (!isOpen) {
+    panel.classList.add('open');
+    panel.innerHTML = buildIndicatorPanelHTML(idx);
+    var btn = panels[idx].el ? panels[idx].el.querySelector('.ind-btn') : null;
+    if (btn) btn.classList.add('active');
+  }
+}
+function closeIndicatorPanel(idx) {
+  var panel = document.getElementById('ind-panel-' + idx);
+  if (panel) panel.classList.remove('open');
+  var btn = panels[idx] && panels[idx].el ? panels[idx].el.querySelector('.ind-btn') : null;
+  if (btn) btn.classList.remove('active');
+}
+function buildIndicatorPanelHTML(idx) {
+  var p = panels[idx]; if (!p) return '';
+  var html = '<div class="ip-header"><span class="ip-title">Indicators</span><span class="ip-close" onclick="closeIndicatorPanel('+idx+')">&times;</span></div>';
+  // Overlays section
+  html += '<div class="ip-section"><div class="ip-section-title">Overlays</div>';
+  html += '<div class="ip-row"><input type="checkbox" class="ip-toggle" '+(p.overlays.vol.enabled?'checked':'')+' onchange="togglePanelOverlay('+idx+',\'vol\',this.checked)"><span class="ip-name">Volume</span></div>';
+  html += '<div class="ip-row"><input type="checkbox" class="ip-toggle" '+(p.overlays.vwap.enabled?'checked':'')+' onchange="togglePanelOverlay('+idx+',\'vwap\',this.checked)"><span class="ip-swatch" style="background:'+p.overlays.vwap.color+'"></span><span class="ip-name">VWAP</span><span class="ip-gear" onclick="openPanelOverlaySettings('+idx+',\'vwap\',event)">&#9881;</span></div>';
+  html += '<div class="ip-row"><input type="checkbox" class="ip-toggle" '+(p.overlays.lc.enabled?'checked':'')+' onchange="togglePanelOverlay('+idx+',\'lc\',this.checked)"><span class="ip-swatch" style="background:'+p.overlays.lc.color+'"></span><span class="ip-name">Lorentzian Classification</span><span class="ip-gear" onclick="openPanelLCSettings('+idx+',event)">&#9881;</span></div>';
+  html += '</div>';
+  // Moving Averages section
+  if (p.maOverlays.length > 0) {
+    html += '<div class="ip-section"><div class="ip-section-title">Moving Averages</div>';
+    p.maOverlays.forEach(function(ma, mi) {
+      html += '<div class="ip-row"><span class="ip-swatch" style="background:'+ma.color+'"></span><span class="ip-name">'+ma.maType+' ('+ma.period+')</span><span class="ip-gear" onclick="openPanelMASettings('+idx+','+mi+',event)">&#9881;</span><span class="ip-remove" onclick="removePanelMA('+idx+','+mi+')">&times;</span></div>';
+    });
+    html += '</div>';
+  }
+  // Anchor VWAPs section
+  if (p.anchorVwaps.length > 0) {
+    html += '<div class="ip-section"><div class="ip-section-title">Anchor VWAP</div>';
+    p.anchorVwaps.forEach(function(av, ai) {
+      var anchorLabel = av.anchorTime ? new Date(av.anchorTime*1000).toLocaleDateString('en-US',{timeZone:'UTC',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) : 'Pick...';
+      html += '<div class="ip-row"><span class="ip-swatch" style="background:'+av.color+'"></span><span class="ip-name">AVWAP ('+anchorLabel+')</span><span class="ip-gear" onclick="openPanelAvwapSettings('+idx+','+ai+',event)">&#9881;</span><span class="ip-remove" onclick="removePanelAvwap('+idx+','+ai+')">&times;</span></div>';
+    });
+    html += '</div>';
+  }
+  // Oscillators section
+  if (p.oscillators.length > 0) {
+    html += '<div class="ip-section"><div class="ip-section-title">Oscillators</div>';
+    p.oscillators.forEach(function(osc, oi) {
+      var pStr = osc.period + (osc.period2 !== undefined ? ','+osc.period2 : '');
+      html += '<div class="ip-row"><span class="ip-swatch" style="background:'+osc.color+'"></span><span class="ip-name">'+osc.type+' ('+pStr+')</span><span class="ip-gear" onclick="openPanelOscSettings('+idx+','+oi+',event)">&#9881;</span><span class="ip-remove" onclick="removePanelOsc('+idx+','+oi+')">&times;</span></div>';
+    });
+    html += '</div>';
+  }
+  // Add indicator dropdown
+  html += '<div class="ip-add"><select onchange="addPanelIndicator('+idx+',this)"><option value="">+ Add Indicator...</option><option value="MA">Moving Average</option><option value="AVWAP">Anchor VWAP</option><optgroup label="Oscillators"><option value="RSI">RSI</option><option value="CCI">CCI</option><option value="ADX">ADX</option><option value="WaveTrend">WaveTrend</option><option value="MACD">MACD</option><option value="Stochastic">Stochastic</option></optgroup></select></div>';
+  return html;
+}
+function refreshPanelIndicatorBar(idx) {
+  var p = panels[idx]; if (!p || !p.el) return;
+  // Refresh the indicator panel if open
+  var panel = document.getElementById('ind-panel-' + idx);
+  if (panel && panel.classList.contains('open')) panel.innerHTML = buildIndicatorPanelHTML(idx);
+  // Update the badge count on the button
+  var btn = p.el.querySelector('.ind-btn');
+  if (btn) btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 16 16"><path d="M1 13h14v1H1zm1-6h2v5H2zm4-4h2v9H6zm4 2h2v7h-2zm4-3h2v10h-2z" fill="currentColor"/></svg> Indicators' + getIndicatorCountBadge(idx);
+}
+function buildPanelHeaderHTML(idx) {
+  var p = panels[idx];
+  var o = p.ohlcv || {};
+  var sym = p.symbol || '\u2014';
+  var tf = TF_LABELS[p.timeframe] || p.timeframe;
+  var html = '<span class="ph-symbol">' + sym + '</span>';
+  html += '<span class="ph-dot">\u00b7</span>';
+  html += '<span class="ph-tf">' + tf + '</span>';
+  html += '<span class="ph-ohlcv" id="ph-ohlcv-'+idx+'">';
+  if (o.open !== undefined) {
+    var chg = o.close - o.prevClose;
+    var chgPct = o.prevClose ? ((chg / o.prevClose) * 100) : 0;
+    var cls = chg >= 0 ? 'pos' : 'neg';
+    html += '<span><span class="lbl">O</span> <span class="val">'+o.open+'</span></span>';
+    html += '<span><span class="lbl">H</span> <span class="val">'+o.high+'</span></span>';
+    html += '<span><span class="lbl">L</span> <span class="val">'+o.low+'</span></span>';
+    html += '<span><span class="lbl">C</span> <span class="val">'+o.close+'</span></span>';
+    html += '<span class="'+cls+'">'+(chg>=0?'+':'')+chg.toFixed(2)+' ('+(chg>=0?'+':'')+chgPct.toFixed(2)+'%)</span>';
+    html += '<span><span class="lbl">V</span> <span class="val">'+formatVol(o.volume)+'</span></span>';
+    var spread = Math.max(0.01, (o.high-o.low)*0.002);
+    var bid = (o.close - spread).toFixed(2), ask = (o.close + spread).toFixed(2);
+  }
+  html += '</span>';
+  if (o.open !== undefined) {
+    html+='<span class="ph-bidask"><span><span class="ba-lbl">Bid</span> <span class="bid">'+bid+'</span></span><span><span class="ba-lbl">Ask</span> <span class="ask">'+ask+'</span></span></span>';
+  }
+  html += '<span class="ph-tz">ET</span>';
+  return html;
+}
+function _utcDayKey(unixSec) {
+  var d = new Date(unixSec * 1000);
+  return d.getUTCFullYear()*10000 + (d.getUTCMonth()+1)*100 + d.getUTCDate();
+}
+function _findPrevDayClose(bars, currentBar) {
+  // Find previous trading day's close from bars array (uses UTC methods since timestamps are ET-as-UTC)
+  if (!bars || bars.length < 2 || !currentBar) return currentBar ? currentBar.open : 0;
+  var curDay = _utcDayKey(currentBar.time);
+  for (var j = bars.length - 1; j >= 0; j--) {
+    if (_utcDayKey(bars[j].time) !== curDay) return bars[j].close;
+  }
+  return bars[0].open;
+}
+function updatePanelOHLCV(idx, bar, firstBar) {
+  var p = panels[idx];
+  if (!p) return;
+  var allBars = p.filteredBars || p.bars;
+  var prevClose = _findPrevDayClose(allBars, bar);
+  p.ohlcv = {open:bar.open, high:bar.high, low:bar.low, close:bar.close, volume:bar.volume, prevClose:prevClose};
+  var el = document.getElementById('ph-ohlcv-'+idx);
+  if (!el) return;
+  var o = p.ohlcv;
+  var chg = o.close - o.prevClose;
+  var chgPct = o.prevClose ? ((chg / o.prevClose) * 100) : 0;
+  var cls = chg >= 0 ? 'pos' : 'neg';
+  var html = '';
+  html += '<span><span class="lbl">O</span> <span class="val">'+o.open+'</span></span>';
+  html += '<span><span class="lbl">H</span> <span class="val">'+o.high+'</span></span>';
+  html += '<span><span class="lbl">L</span> <span class="val">'+o.low+'</span></span>';
+  html += '<span><span class="lbl">C</span> <span class="val">'+o.close+'</span></span>';
+  html += '<span class="'+cls+'">'+(chg>=0?'+':'')+chg.toFixed(2)+' ('+(chg>=0?'+':'')+chgPct.toFixed(2)+'%)</span>';
+  html += '<span><span class="lbl">V</span> <span class="val">'+formatVol(o.volume)+'</span></span>';
+  el.innerHTML = html;
+  var spread = Math.max(0.01, (o.high-o.low)*0.002);
+  var bid = (o.close - spread).toFixed(2), ask = (o.close + spread).toFixed(2);
+  var baEl = p.el ? p.el.querySelector('.ph-bidask') : null;
+  if (baEl) baEl.innerHTML = '<span><span class="ba-lbl">Bid</span> <span class="bid">'+bid+'</span></span><span><span class="ba-lbl">Ask</span> <span class="ask">'+ask+'</span></span>';
 }
 
 // ============================================================================
@@ -453,8 +923,8 @@ function kernelRQ(src, lookback, relWeight, startAtBar) {
   }
   return result;
 }
-function calcLorentzian(bars) {
-  var s = OV.lc;
+function calcLorentzian(bars, lcSettings) {
+  var s = lcSettings;
   var K = s.neighbors || 8;
   var maxBack = Math.min(s.maxBarsBack || 2000, bars.length);
   var useVolFilter = s.useVolFilter !== false;
@@ -520,23 +990,395 @@ function calcLorentzian(bars) {
 }
 
 // ============================================================================
-// SYMBOL LIST
+// WATCHLIST / SYMBOL LIST
 // ============================================================================
+var ASSET_NAMES = {}; // {sym: 'Apple Inc.'} — populated as needed
+var symSortMode = 'manual'; // 'manual', 'name', 'change'
+var quotePollingTimer = null;
+var quoteSource = 'closed'; // 'live', 'delayed', 'closed'
+var listFontSizes = ['fs-small', 'fs-medium', 'fs-large'];
+var listFontIdx = 1; // default: medium
+
+function cycleListFontSize() {
+  listFontIdx = (listFontIdx + 1) % listFontSizes.length;
+  applyListFontSize();
+  saveToStorage('orb_list_font', listFontIdx);
+}
+function applyListFontSize() {
+  var el = document.getElementById('symbol-list');
+  if (!el) return;
+  listFontSizes.forEach(function(c) { el.classList.remove(c); });
+  el.classList.add(listFontSizes[listFontIdx]);
+}
+function updateAddGroupSelector() {
+  var sel = document.getElementById('add-sym-group');
+  if (!sel) return;
+  var wl = getActiveWL();
+  if (!wl || wl.groups.length <= 1) { sel.style.display = 'none'; return; }
+  sel.style.display = '';
+  sel.innerHTML = '';
+  wl.groups.forEach(function(g, i) {
+    var opt = document.createElement('option');
+    opt.value = i; opt.textContent = g.name;
+    sel.appendChild(opt);
+  });
+}
+
+function makeWatchlist(name) {
+  return {id:'wl_'+Date.now()+'_'+Math.random().toString(36).substr(2,4), name:name, groups:[{id:'g_default', name:'Ungrouped', symbols:[], collapsed:false}]};
+}
+function getActiveWL() { return watchlists[activeWLIdx] || null; }
+function saveWatchlists() { saveToStorage('orb_watchlists', {lists:watchlists, active:activeWLIdx}); }
+
+// --- Tabs ---
+function renderWLTabs() {
+  var el = document.getElementById('wl-tabs');
+  var html = '';
+  watchlists.forEach(function(wl, i) {
+    html += '<div class="wl-tab'+(i===activeWLIdx?' active':'')+'" ondblclick="renameWLTab('+i+')" onclick="switchWLTab('+i+')" oncontextmenu="wlTabCtx(event,'+i+')">'+wl.name+'</div>';
+  });
+  html += '<div class="wl-tab-add" onclick="addWLTab()" title="New watchlist">+</div>';
+  el.innerHTML = html;
+}
+function switchWLTab(i) { activeWLIdx = i; renderWLTabs(); renderSymbolList(); saveWatchlists(); }
+function addWLTab() {
+  var name = prompt('Watchlist name:', 'List ' + (watchlists.length + 1));
+  if (!name) return;
+  watchlists.push(makeWatchlist(name));
+  activeWLIdx = watchlists.length - 1;
+  renderWLTabs(); renderSymbolList(); saveWatchlists();
+}
+function renameWLTab(i) {
+  var name = prompt('Rename watchlist:', watchlists[i].name);
+  if (!name) return;
+  watchlists[i].name = name;
+  renderWLTabs(); saveWatchlists();
+}
+function deleteWLTab(i) {
+  if (watchlists.length <= 1) return;
+  if (!confirm('Delete watchlist "' + watchlists[i].name + '"?')) return;
+  watchlists.splice(i, 1);
+  if (activeWLIdx >= watchlists.length) activeWLIdx = watchlists.length - 1;
+  renderWLTabs(); renderSymbolList(); saveWatchlists();
+}
+function wlTabCtx(e, i) {
+  e.preventDefault();
+  showContextMenu(e.clientX, e.clientY, [
+    {label:'Rename', action:function(){renameWLTab(i);}},
+    {label:'Delete', action:function(){deleteWLTab(i);}, danger:watchlists.length>1}
+  ]);
+}
+
+// --- Groups ---
+function addNewGroup() {
+  var wl = getActiveWL(); if (!wl) return;
+  var name = prompt('Group name:', 'Group ' + (wl.groups.length + 1));
+  if (!name) return;
+  wl.groups.push({id:'g_'+Date.now(), name:name, symbols:[], collapsed:false});
+  renderSymbolList(); saveWatchlists();
+}
+function renameGroup(gIdx) {
+  var wl = getActiveWL(); if (!wl) return;
+  var name = prompt('Rename group:', wl.groups[gIdx].name);
+  if (!name) return;
+  wl.groups[gIdx].name = name;
+  renderSymbolList(); saveWatchlists();
+}
+function deleteGroup(gIdx) {
+  var wl = getActiveWL(); if (!wl) return;
+  if (!confirm('Delete group "' + wl.groups[gIdx].name + '"?')) return;
+  wl.groups.splice(gIdx, 1);
+  renderSymbolList(); saveWatchlists();
+}
+function toggleGroupCollapse(gIdx) {
+  var wl = getActiveWL(); if (!wl) return;
+  wl.groups[gIdx].collapsed = !wl.groups[gIdx].collapsed;
+  renderSymbolList(); saveWatchlists();
+}
+function moveSymToGroup(sym, fromGIdx, toGIdx) {
+  var wl = getActiveWL(); if (!wl) return;
+  var fromG = wl.groups[fromGIdx];
+  var idx = fromG.symbols.indexOf(sym);
+  if (idx >= 0) fromG.symbols.splice(idx, 1);
+  if (toGIdx >= 0 && toGIdx < wl.groups.length) {
+    if (wl.groups[toGIdx].symbols.indexOf(sym) === -1) wl.groups[toGIdx].symbols.push(sym);
+  }
+  renderSymbolList(); saveWatchlists();
+}
+function moveGroupUp(gIdx) {
+  var wl = getActiveWL(); if (!wl || gIdx <= 0) return;
+  var tmp = wl.groups[gIdx]; wl.groups[gIdx] = wl.groups[gIdx-1]; wl.groups[gIdx-1] = tmp;
+  renderSymbolList(); saveWatchlists();
+}
+function moveGroupDown(gIdx) {
+  var wl = getActiveWL(); if (!wl || gIdx >= wl.groups.length - 1) return;
+  var tmp = wl.groups[gIdx]; wl.groups[gIdx] = wl.groups[gIdx+1]; wl.groups[gIdx+1] = tmp;
+  renderSymbolList(); saveWatchlists();
+}
+function sortGroupsAZ() {
+  var wl = getActiveWL(); if (!wl) return;
+  wl.groups.sort(function(a,b) { return a.name.localeCompare(b.name); });
+  renderSymbolList(); saveWatchlists();
+}
+function setSymSort(mode) {
+  symSortMode = mode;
+  document.querySelectorAll('.wl-sort-btn').forEach(function(b) { b.classList.toggle('active', b.getAttribute('data-sort') === mode); });
+  renderSymbolList();
+}
+function getSortedSymbols(syms) {
+  if (symSortMode === 'name') {
+    return syms.slice().sort();
+  } else if (symSortMode === 'change') {
+    return syms.slice().sort(function(a,b) {
+      var qa = quoteCache[a] || {}, qb = quoteCache[b] || {};
+      return (qb.changePct || 0) - (qa.changePct || 0);
+    });
+  }
+  return syms; // manual — original order
+}
+
+// --- Add / Delete symbols ---
+function addSymbolToWL(sym) {
+  sym = sym.toUpperCase().trim();
+  if (!sym) return;
+  var wl = getActiveWL(); if (!wl) return;
+  // Check if already in any group
+  var found = false;
+  wl.groups.forEach(function(g) { if (g.symbols.indexOf(sym) >= 0) found = true; });
+  if (found) return;
+  // Add to selected group (or first group)
+  var sel = document.getElementById('add-sym-group');
+  var gIdx = 0;
+  if (sel && sel.style.display !== 'none' && sel.value) gIdx = parseInt(sel.value) || 0;
+  if (gIdx >= wl.groups.length) gIdx = 0;
+  wl.groups[gIdx].symbols.push(sym);
+  renderSymbolList(); saveWatchlists();
+  // Fetch quote from server
+  fetchQuoteFor(sym);
+}
+function deleteSymFromWL(sym, gIdx) {
+  var wl = getActiveWL(); if (!wl) return;
+  var g = wl.groups[gIdx];
+  var idx = g.symbols.indexOf(sym);
+  if (idx >= 0) g.symbols.splice(idx, 1);
+  renderSymbolList(); saveWatchlists();
+}
+
+// --- Context menu ---
+var _ctxEl = null;
+function showContextMenu(x, y, items) {
+  closeContextMenu();
+  var div = document.createElement('div'); div.className = 'sym-ctx';
+  items.forEach(function(it) {
+    if (it.sep) { var s = document.createElement('div'); s.className = 'sym-ctx-sep'; div.appendChild(s); return; }
+    if (it.danger === false) return; // skip disabled items
+    var d = document.createElement('div'); d.className = 'sym-ctx-item' + (it.danger ? ' danger' : '');
+    d.textContent = it.label;
+    d.onclick = function() { closeContextMenu(); it.action(); };
+    div.appendChild(d);
+  });
+  div.style.left = x + 'px'; div.style.top = y + 'px';
+  document.body.appendChild(div);
+  _ctxEl = div;
+  // Adjust if off-screen
+  var rect = div.getBoundingClientRect();
+  if (rect.right > window.innerWidth) div.style.left = (window.innerWidth - rect.width - 4) + 'px';
+  if (rect.bottom > window.innerHeight) div.style.top = (window.innerHeight - rect.height - 4) + 'px';
+  setTimeout(function() { document.addEventListener('mousedown', _ctxOutside); }, 10);
+}
+function closeContextMenu() { if (_ctxEl && _ctxEl.parentNode) _ctxEl.parentNode.removeChild(_ctxEl); _ctxEl = null; document.removeEventListener('mousedown', _ctxOutside); }
+function _ctxOutside(e) { if (_ctxEl && !_ctxEl.contains(e.target)) closeContextMenu(); }
+
+function symContextMenu(e, sym, gIdx) {
+  e.preventDefault(); e.stopPropagation();
+  var wl = getActiveWL(); if (!wl) return;
+  var items = [];
+  // Move to group submenu — build as flat items
+  wl.groups.forEach(function(g, gi) {
+    if (gi === gIdx) return;
+    items.push({label:'Move to ' + g.name, action:function(){moveSymToGroup(sym, gIdx, gi);}});
+  });
+  if (items.length > 0) items.push({sep:true});
+  items.push({label:'Delete from list', action:function(){deleteSymFromWL(sym, gIdx);}, danger:true});
+  showContextMenu(e.clientX, e.clientY, items);
+}
+function groupContextMenu(e, gIdx) {
+  e.preventDefault(); e.stopPropagation();
+  var wl = getActiveWL(); if (!wl) return;
+  var items = [];
+  if (gIdx > 0) items.push({label:'Move up', action:function(){moveGroupUp(gIdx);}});
+  if (gIdx < wl.groups.length - 1) items.push({label:'Move down', action:function(){moveGroupDown(gIdx);}});
+  items.push({label:'Sort symbols A-Z', action:function(){
+    wl.groups[gIdx].symbols.sort(); renderSymbolList(); saveWatchlists();
+  }});
+  items.push({label:'Sort all groups A-Z', action:function(){sortGroupsAZ();}});
+  items.push({sep:true});
+  items.push({label:'Rename', action:function(){renameGroup(gIdx);}});
+  items.push({label:'Delete group', action:function(){deleteGroup(gIdx);}, danger:true});
+  showContextMenu(e.clientX, e.clientY, items);
+}
+
+// --- Render ---
 function renderSymbolList(filter) {
   var el = document.getElementById('symbol-list');
-  var filt = (filter || '').toUpperCase();
+  var wl = getActiveWL();
+  var filt = (filter || document.getElementById('sym-search').value || '').toUpperCase();
   var activeSym = panels[activePanel] ? panels[activePanel].symbol : null;
+  updateAddGroupSelector();
+  if (!wl) { el.innerHTML = '<div style="padding:20px;color:#484f58;text-align:center;font-size:12px">No watchlist</div>'; return; }
   el.innerHTML = '';
-  allSymbols.forEach(function(sym) {
-    if (filt && sym.indexOf(filt) === -1) return;
-    var div = document.createElement('div');
-    div.className = 'sym-item' + (sym === activeSym ? ' active' : '');
-    div.textContent = sym;
-    div.onclick = function() { selectSymbol(sym); };
-    el.appendChild(div);
+  wl.groups.forEach(function(g, gIdx) {
+    // Filter: if no symbols match filter, hide group
+    var syms = g.symbols;
+    if (filt) syms = syms.filter(function(s) { return s.indexOf(filt) >= 0; });
+    if (filt && syms.length === 0) return;
+
+    // Apply sort
+    syms = getSortedSymbols(syms);
+
+    var grpDiv = document.createElement('div'); grpDiv.className = 'wl-group';
+    grpDiv.setAttribute('data-gidx', gIdx);
+
+    // Group header (hide for default ungrouped if only one group)
+    if (wl.groups.length > 1 || g.id !== 'g_default') {
+      var hdr = document.createElement('div'); hdr.className = 'wl-group-header';
+      hdr.setAttribute('draggable', 'true');
+      var actionsHtml = '<span class="wl-g-actions">';
+      if (gIdx > 0) actionsHtml += '<button class="wl-g-btn" onclick="event.stopPropagation();moveGroupUp('+gIdx+')" title="Move up">&#9650;</button>';
+      if (gIdx < wl.groups.length - 1) actionsHtml += '<button class="wl-g-btn" onclick="event.stopPropagation();moveGroupDown('+gIdx+')" title="Move down">&#9660;</button>';
+      actionsHtml += '<button class="wl-g-btn" onclick="event.stopPropagation();renameGroup('+gIdx+')" title="Rename">&#9998;</button>';
+      actionsHtml += '<button class="wl-g-btn" onclick="event.stopPropagation();deleteGroup('+gIdx+')" title="Delete">&times;</button>';
+      actionsHtml += '</span>';
+      hdr.innerHTML = '<span class="wl-g-arrow'+(g.collapsed?' collapsed':'')+'">&#9660;</span><span class="wl-g-name">'+g.name+' ('+g.symbols.length+')</span>' + actionsHtml;
+      (function(gi) {
+        hdr.addEventListener('click', function() { toggleGroupCollapse(gi); });
+        hdr.addEventListener('contextmenu', function(e) { groupContextMenu(e, gi); });
+        // Drag-and-drop group reorder
+        hdr.addEventListener('dragstart', function(e) { e.dataTransfer.setData('text/plain', 'group:'+gi); e.dataTransfer.effectAllowed = 'move'; });
+        hdr.addEventListener('dragover', function(e) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; hdr.classList.add('drag-over'); });
+        hdr.addEventListener('dragleave', function() { hdr.classList.remove('drag-over'); });
+        hdr.addEventListener('drop', function(e) {
+          e.preventDefault(); hdr.classList.remove('drag-over');
+          var data = e.dataTransfer.getData('text/plain');
+          if (data.indexOf('group:') === 0) {
+            var fromIdx = parseInt(data.split(':')[1]);
+            if (fromIdx !== gi) {
+              var wl2 = getActiveWL(); if (!wl2) return;
+              var moved = wl2.groups.splice(fromIdx, 1)[0];
+              wl2.groups.splice(gi, 0, moved);
+              renderSymbolList(); saveWatchlists();
+            }
+          }
+        });
+      })(gIdx);
+      grpDiv.appendChild(hdr);
+    }
+
+    var itemsDiv = document.createElement('div'); itemsDiv.className = 'wl-group-items' + (g.collapsed ? ' collapsed' : '');
+    syms.forEach(function(sym) {
+      var q = quoteCache[sym] || {};
+      var div = document.createElement('div');
+      div.className = 'sym-item' + (sym === activeSym ? ' active' : '');
+      div.title = (ASSET_NAMES[sym] || sym) + (q.source ? ' [' + q.source + ']' : '');
+      var priceStr = q.price != null ? q.price.toFixed(2) : '--';
+      var chgStr = '', chgCls = '';
+      if (q.change != null) {
+        chgCls = q.change >= 0 ? 'pos' : 'neg';
+        chgStr = (q.change >= 0 ? '+' : '') + q.change.toFixed(2) + ' (' + (q.changePct >= 0 ? '+' : '') + q.changePct.toFixed(2) + '%)';
+      }
+      div.innerHTML = '<span class="si-symbol">' + sym + '</span>' +
+        '<span class="si-price">' + priceStr + '</span>' +
+        '<span class="si-change ' + chgCls + '">' + chgStr + '</span>' +
+        '<span class="si-gear" onclick="symContextMenu(event,\'' + sym + '\',' + gIdx + ')">&#9881;</span>';
+      div.addEventListener('click', function(e) { if (!e.target.classList.contains('si-gear')) selectSymbol(sym); });
+      itemsDiv.appendChild(div);
+    });
+    grpDiv.appendChild(itemsDiv);
+    el.appendChild(grpDiv);
   });
 }
 function filterSymbols() { renderSymbolList(document.getElementById('sym-search').value); }
+function fetchQuoteFor(sym) {
+  // Check panel bars first — compute daily change (last day close vs prev day close)
+  var found = false;
+  panels.forEach(function(p) {
+    if (p.symbol === sym && p.bars && p.bars.length >= 2) {
+      var bars = p.bars;
+      var last = bars[bars.length - 1];
+      // Find previous day's close by looking for last bar with a different date
+      var lastDate = new Date(last.time * 1000).toDateString();
+      var prevClose = null;
+      for (var j = bars.length - 2; j >= 0; j--) {
+        var d = new Date(bars[j].time * 1000).toDateString();
+        if (d !== lastDate) { prevClose = bars[j].close; break; }
+      }
+      if (prevClose === null) prevClose = bars[0].open;
+      var chg = +(last.close - prevClose).toFixed(4);
+      var chgPct = prevClose ? +((chg / prevClose) * 100).toFixed(2) : 0;
+      quoteCache[sym] = {price:last.close, change:chg, changePct:chgPct, source:'cache'};
+      found = true;
+    }
+  });
+  if (found) { renderSymbolList(); return; }
+  // Try server — cached quotes first (works without market_data manager), then live
+  fetch('/api/quotes?symbols=' + encodeURIComponent(sym))
+    .then(function(r) { return r.ok ? r.json() : {}; })
+    .then(function(data) {
+      if (data && data[sym]) { quoteCache[sym] = data[sym]; renderSymbolList(); return; }
+      // No cached quote — try live
+      return fetch('/api/quotes/live?symbols=' + encodeURIComponent(sym))
+        .then(function(r) { return r.ok ? r.json() : {}; })
+        .then(function(d) { if (d && d[sym]) { quoteCache[sym] = d[sym]; renderSymbolList(); } });
+    })
+    .catch(function() {});
+}
+function fetchAllQuotes() {
+  // Try live quotes first, fall back to cached/delayed
+  fetch('/api/quotes/live')
+    .then(function(r) { return r.ok ? r.json() : null; })
+    .then(function(data) {
+      if (!data) return fetchCachedQuotes();
+      var hasLive = false;
+      for (var sym in data) {
+        if (data.hasOwnProperty(sym)) { quoteCache[sym] = data[sym]; hasLive = true; }
+      }
+      if (hasLive) { quoteSource = 'live'; updateQuoteStatus(); renderSymbolList(); return; }
+      return fetchCachedQuotes();
+    })
+    .catch(function() { return fetchCachedQuotes(); });
+}
+function fetchCachedQuotes() {
+  return fetch('/api/quotes')
+    .then(function(r) { return r.ok ? r.json() : {}; })
+    .then(function(data) {
+      if (data) {
+        for (var sym in data) {
+          if (data.hasOwnProperty(sym)) quoteCache[sym] = data[sym];
+        }
+      }
+      quoteSource = 'closed';
+      updateQuoteStatus();
+      renderSymbolList();
+    })
+    .catch(function() {});
+}
+function updateQuoteStatus() {
+  var el = document.getElementById('quote-status');
+  if (!el) return;
+  el.className = 'wl-quote-status ' + quoteSource;
+  if (quoteSource === 'live') el.textContent = 'LIVE';
+  else if (quoteSource === 'delayed') el.textContent = 'DELAYED';
+  else el.textContent = 'EOD';
+}
+function startQuotePolling() {
+  if (quotePollingTimer) clearInterval(quotePollingTimer);
+  // Poll every 30 seconds for live, every 60 seconds for cached
+  var interval = quoteSource === 'live' ? 30000 : 60000;
+  quotePollingTimer = setInterval(function() { fetchAllQuotes(); }, interval);
+}
+function stopQuotePolling() {
+  if (quotePollingTimer) { clearInterval(quotePollingTimer); quotePollingTimer = null; }
+}
 function selectSymbol(sym) {
   if (SYNC.symbol) {
     var count = getPanelCount(currentLayout);
@@ -550,6 +1392,7 @@ function selectSymbol(sym) {
     renderSymbolList(document.getElementById('sym-search').value);
     loadPanelData(activePanel);
   }
+  saveLayout();
 }
 
 // ============================================================================
@@ -575,7 +1418,7 @@ function setPeriod(p) {
   document.getElementById('dt-start').value = start;
   document.getElementById('dt-end').value = end;
   if (panels[activePanel]) panels[activePanel].timeframe = tf;
-  document.getElementById('tf-input').value = tf;
+  document.getElementById('tf-select').value = tf;
   updatePanelHeader(activePanel);
   loadAllPanels();
 }
@@ -594,21 +1437,207 @@ function getPanelCount(layout) {
   return 4;
 }
 function makePanel(idx) {
-  return {id:idx, symbol:null, timeframe:document.getElementById('tf-input').value, bars:null, chart:null, candleSeries:null, resizeObs:null, loadAbort:null, el:null};
+  return {
+    id: idx, symbol: null, timeframe: document.getElementById('tf-select').value,
+    bars: null, chart: null, candleSeries: null, resizeObs: null, drawingManager: null, loadAbort: null, el: null,
+    overlays: {
+      vol:  {enabled:true},
+      vwap: {enabled:true, color:'#ff9800', lineStyle:0, lineWidth:2},
+      lc:   {enabled:false, color:'#00bcd4', lineStyle:0, lineWidth:2, neighbors:8, maxBarsBack:2000, useVolFilter:true, useRegimeFilter:true, useADXFilter:false, regimeThreshold:-0.1, adxThreshold:20, kernelLookback:8, kernelRelWeight:8, kernelStartBar:25},
+    },
+    maOverlays: [], oscillators: [], oscCharts: [], anchorVwaps: [],
+    oscColorIdx: 0, maColorIdx: 0, avwapColorIdx: 0,
+    ohlcv: {}, indicatorBarCollapsed: false,
+    assetClass: 'stocks', session: 'extended',
+  };
 }
 function setLayout(layout) {
   currentLayout = layout;
   var count = getPanelCount(layout);
   document.getElementById('layout-select').value = layout;
-  destroyOscPanels();
-  panels.forEach(function(p) { destroyPanelChart(p); });
+  // Update layout tab highlights
+  document.querySelectorAll('.layout-tab').forEach(function(t){ t.classList.toggle('active', t.getAttribute('data-layout')===layout); });
+  for (var i = 0; i < panels.length; i++) {
+    destroyPanelOscPanels(i);
+    destroyPanelChart(panels[i]);
+  }
   while (panels.length < count) panels.push(makePanel(panels.length));
   if (activePanel >= count) activePanel = 0;
   createPanelElements(count);
   var grid = document.getElementById('panels-grid');
   grid.className = 'layout-' + layout;
   for (var i = 0; i < count; i++) { if (panels[i].symbol) loadPanelData(i); }
-  document.getElementById('tf-input').value = panels[activePanel].timeframe;
+  document.getElementById('tf-select').value = panels[activePanel].timeframe;
+  saveLayout();
+  renderNamedLayoutTabs();
+}
+function saveLayout() {
+  // Update active layout entry and persist all layouts
+  var panelData = [];
+  for (var i = 0; i < panels.length; i++) {
+    panelData.push({ symbol: panels[i].symbol, timeframe: panels[i].timeframe, assetClass: panels[i].assetClass, session: panels[i].session });
+  }
+  // Find and update active layout
+  for (var i = 0; i < allLayouts.length; i++) {
+    if (allLayouts[i].id === activeLayoutId) {
+      allLayouts[i].layout = currentLayout;
+      allLayouts[i].panels = panelData;
+      break;
+    }
+  }
+  saveLayouts();
+}
+function saveLayouts() {
+  saveToStorage('orb_layouts', { active: activeLayoutId, items: allLayouts });
+}
+function _genLayoutId() { return 'ly_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4); }
+function loadLayouts() {
+  // Try new format first
+  var saved = loadFromStorage('orb_layouts');
+  if (saved && saved.items && saved.items.length) {
+    allLayouts = saved.items;
+    activeLayoutId = saved.active || allLayouts[0].id;
+    // Ensure active ID exists
+    var found = false;
+    for (var i = 0; i < allLayouts.length; i++) {
+      if (allLayouts[i].id === activeLayoutId) { found = true; break; }
+    }
+    if (!found) activeLayoutId = allLayouts[0].id;
+    return;
+  }
+  // Migrate from old orb_layout format
+  var old = loadFromStorage('orb_layout');
+  if (old) {
+    var id = _genLayoutId();
+    allLayouts = [{ id: id, name: 'Default', layout: old.layout || '1', panels: old.panels || [] }];
+    activeLayoutId = id;
+    saveLayouts();
+    deleteFromStorage('orb_layout');
+    return;
+  }
+  // No saved data — create default
+  var id = _genLayoutId();
+  allLayouts = [{ id: id, name: 'Default', layout: '1', panels: [] }];
+  activeLayoutId = id;
+}
+function getActiveLayout() {
+  for (var i = 0; i < allLayouts.length; i++) {
+    if (allLayouts[i].id === activeLayoutId) return allLayouts[i];
+  }
+  return allLayouts[0] || null;
+}
+function switchLayout(id) {
+  if (id === activeLayoutId) return;
+  // Save current state to active layout before switching
+  saveLayout();
+  activeLayoutId = id;
+  var ly = getActiveLayout();
+  if (!ly) return;
+  // Destroy current panels
+  for (var i = 0; i < panels.length; i++) {
+    destroyPanelOscPanels(i);
+    destroyPanelChart(panels[i]);
+  }
+  panels = [];
+  activePanel = 0;
+  // Load target layout
+  currentLayout = ly.layout || '1';
+  var count = getPanelCount(currentLayout);
+  for (var i = 0; i < count; i++) {
+    var p = makePanel(i);
+    if (ly.panels && ly.panels[i]) {
+      p.symbol = ly.panels[i].symbol || null;
+      p.timeframe = ly.panels[i].timeframe || '5min';
+      p.assetClass = ly.panels[i].assetClass || 'stocks';
+      p.session = ly.panels[i].session || 'extended';
+    }
+    panels.push(p);
+  }
+  createPanelElements(count);
+  document.getElementById('panels-grid').className = 'layout-' + currentLayout;
+  document.getElementById('layout-select').value = currentLayout;
+  document.querySelectorAll('.layout-tab').forEach(function(t){ t.classList.toggle('active', t.getAttribute('data-layout')===currentLayout); });
+  document.getElementById('tf-select').value = panels[activePanel].timeframe;
+  for (var i = 0; i < count; i++) { if (panels[i].symbol) loadPanelData(i); }
+  saveLayouts();
+  renderNamedLayoutTabs();
+}
+function _copyLayoutDrawings(fromId, toId) {
+  var prefix = 'orb_drawings_' + fromId + '_';
+  var keys = Object.keys(__stateCache);
+  for (var i = 0; i < keys.length; i++) {
+    if (keys[i].indexOf(prefix) === 0) {
+      var sym = keys[i].substring(prefix.length);
+      var data = loadFromStorage(keys[i]);
+      if (data) saveToStorage('orb_drawings_' + toId + '_' + sym, data);
+    }
+  }
+}
+function addNewLayout(name, copyDrawings) {
+  name = name || 'Layout ' + (allLayouts.length + 1);
+  var oldId = activeLayoutId;
+  var id = _genLayoutId();
+  allLayouts.push({ id: id, name: name, layout: '1', panels: [] });
+  if (copyDrawings && oldId) _copyLayoutDrawings(oldId, id);
+  switchLayout(id);
+}
+function _deleteLayoutDrawings(lyId) {
+  var prefix = 'orb_drawings_' + lyId + '_';
+  var keys = Object.keys(__stateCache);
+  for (var i = 0; i < keys.length; i++) {
+    if (keys[i].indexOf(prefix) === 0) deleteFromStorage(keys[i]);
+  }
+}
+function deleteLayout(id) {
+  if (allLayouts.length <= 1) return;
+  var idx = -1;
+  for (var i = 0; i < allLayouts.length; i++) {
+    if (allLayouts[i].id === id) { idx = i; break; }
+  }
+  if (idx < 0) return;
+  _deleteLayoutDrawings(id);
+  allLayouts.splice(idx, 1);
+  if (activeLayoutId === id) {
+    switchLayout(allLayouts[0].id);
+  } else {
+    saveLayouts();
+    renderNamedLayoutTabs();
+  }
+}
+function renameLayout(id, newName) {
+  for (var i = 0; i < allLayouts.length; i++) {
+    if (allLayouts[i].id === id) { allLayouts[i].name = newName; break; }
+  }
+  saveLayouts();
+  renderNamedLayoutTabs();
+}
+function renderNamedLayoutTabs() {
+  var c = document.getElementById('named-layouts');
+  if (!c) return;
+  var html = '';
+  for (var i = 0; i < allLayouts.length; i++) {
+    var ly = allLayouts[i];
+    var cls = ly.id === activeLayoutId ? 'nl-tab active' : 'nl-tab';
+    html += '<button class="' + cls + '" data-lyid="' + ly.id + '" onclick="switchLayout(\'' + ly.id + '\')" ondblclick="promptRenameLayout(\'' + ly.id + '\')" title="' + ly.name + ' (' + ly.layout + ')">';
+    html += '<span class="nl-name">' + ly.name + '</span>';
+    if (allLayouts.length > 1) html += '<span class="nl-close" onclick="event.stopPropagation();deleteLayout(\'' + ly.id + '\')">&times;</span>';
+    html += '</button>';
+  }
+  html += '<button class="nl-add" onclick="promptAddLayout()" title="Add layout">+</button>';
+  c.innerHTML = html;
+}
+function promptAddLayout() {
+  var name = prompt('Layout name:', 'Layout ' + (allLayouts.length + 1));
+  if (!name) return;
+  var copy = confirm('Copy drawings from current layout?');
+  addNewLayout(name.trim(), copy);
+}
+function promptRenameLayout(id) {
+  var ly = null;
+  for (var i = 0; i < allLayouts.length; i++) { if (allLayouts[i].id === id) { ly = allLayouts[i]; break; } }
+  if (!ly) return;
+  var name = prompt('Rename layout:', ly.name);
+  if (name && name.trim()) renameLayout(id, name.trim());
 }
 function createPanelElements(count) {
   var grid = document.getElementById('panels-grid');
@@ -619,20 +1648,36 @@ function createPanelElements(count) {
     div.className = 'chart-panel' + (i === activePanel ? ' active' : '');
     div.setAttribute('data-idx', i);
     (function(idx) { div.addEventListener('mousedown', function() { setActivePanel(idx); }); })(i);
-    var hdr = document.createElement('div'); hdr.className = 'panel-header';
-    hdr.innerHTML = '<span class="panel-symbol">' + (p.symbol || '\u2014') + '</span><span class="panel-dot">\u00b7</span><span class="panel-tf">' + (TF_LABELS[p.timeframe] || p.timeframe) + '</span>';
+
+    // Panel header bar (OHLCV)
+    var hdr = document.createElement('div'); hdr.className = 'panel-header-bar';
+    hdr.innerHTML = buildPanelHeaderHTML(i);
     div.appendChild(hdr);
+
+    // Panel chart area (main chart + oscillator sub-panels)
+    var chartArea = document.createElement('div'); chartArea.className = 'panel-chart-area';
     var chartDiv = document.createElement('div'); chartDiv.className = 'panel-chart';
     if (!p.symbol) chartDiv.innerHTML = '<div class="panel-empty">Select a symbol</div>';
     var loading = document.createElement('div'); loading.className = 'panel-loading';
     loading.innerHTML = '<div class="spinner"></div>';
     chartDiv.appendChild(loading);
-    var nowBtn = document.createElement('button');
-    nowBtn.className = 'go-now-btn'; nowBtn.title = 'Scroll to latest';
-    nowBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 16 16"><path d="M3 2.5l8 5.5-8 5.5z" fill="currentColor"/><rect x="12" y="3" width="2" height="10" rx="0.5" fill="currentColor"/></svg>';
-    (function(idx) { nowBtn.addEventListener('click', function(e) { e.stopPropagation(); goToNow(idx); }); })(i);
-    chartDiv.appendChild(nowBtn);
-    div.appendChild(chartDiv);
+
+    // Indicator overlay button + panel (inside chart div so it overlays the chart)
+    var indBtn = document.createElement('button'); indBtn.className = 'ind-btn';
+    indBtn.setAttribute('data-panel', i);
+    indBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 16 16"><path d="M1 13h14v1H1zm1-6h2v5H2zm4-4h2v9H6zm4 2h2v7h-2zm4-3h2v10h-2z" fill="currentColor"/></svg> Indicators' + getIndicatorCountBadge(i);
+    (function(idx) { indBtn.addEventListener('click', function(e) { e.stopPropagation(); toggleIndicatorPanel(idx); }); })(i);
+    chartDiv.appendChild(indBtn);
+
+    var indPanel = document.createElement('div'); indPanel.className = 'ind-panel';
+    indPanel.id = 'ind-panel-' + i;
+    indPanel.setAttribute('data-panel', i);
+    indPanel.innerHTML = buildIndicatorPanelHTML(i);
+    chartDiv.appendChild(indPanel);
+
+    chartArea.appendChild(chartDiv);
+    div.appendChild(chartArea);
+
     grid.appendChild(div);
     p.el = div;
   }
@@ -640,30 +1685,98 @@ function createPanelElements(count) {
 function goToNow(idx) {
   var p = panels[idx];
   if (!p || !p.chart || !p.bars || !p.bars.length) return;
-  p.chart.timeScale().scrollToRealTime();
+  // Use non-animated scroll to avoid sync feedback loop with osc panels
+  syncing = true;
+  p.chart.timeScale().scrollToPosition(0, false);
+  // Also scroll oscillator panels directly
+  if (p.oscCharts) p.oscCharts.forEach(function(oc) {
+    if (oc.chart) oc.chart.timeScale().scrollToPosition(0, false);
+  });
+  syncing = false;
 }
 function setActivePanel(idx) {
   if (idx === activePanel) return;
   activePanel = idx;
   document.querySelectorAll('.chart-panel').forEach(function(el, i) { el.classList.toggle('active', i === idx); });
-  if (panels[idx]) document.getElementById('tf-input').value = panels[idx].timeframe;
+  if (panels[idx]) document.getElementById('tf-select').value = panels[idx].timeframe;
   renderSymbolList(document.getElementById('sym-search').value);
 }
 function updatePanelHeader(idx) {
   var p = panels[idx];
   if (!p || !p.el) return;
-  var sym = p.el.querySelector('.panel-symbol');
-  var tfl = p.el.querySelector('.panel-tf');
-  if (sym) sym.textContent = p.symbol || '\u2014';
-  if (tfl) tfl.textContent = TF_LABELS[p.timeframe] || p.timeframe;
+  var hdr = p.el.querySelector('.panel-header-bar');
+  if (hdr) hdr.innerHTML = buildPanelHeaderHTML(idx);
 }
 function showPanelLoading(idx, on) {
   var p = panels[idx]; if (!p || !p.el) return;
   var el = p.el.querySelector('.panel-loading');
   if (el) el.classList.toggle('show', on);
 }
-function onTFChange() {
-  var tf = document.getElementById('tf-input').value.trim();
+function onTFSelectChange() {
+  var sel = document.getElementById('tf-select');
+  if (sel.value === '__custom__') {
+    sel.style.display = 'none';
+    var inp = document.getElementById('tf-custom');
+    inp.style.display = '';
+    inp.value = '';
+    inp.focus();
+    return;
+  }
+  applyTimeframe(sel.value);
+}
+function onTFCustomCommit() {
+  var inp = document.getElementById('tf-custom');
+  var v = inp.value.trim();
+  if (!v) { cancelTFCustom(); return; }
+  // Normalize: digits + unit (min|hour|day)
+  var m = v.match(/^(\d+)\s*(m|min|mins|h|hr|hour|hours|d|day|days)?$/i);
+  if (m) {
+    var num = m[1];
+    var unit = (m[2] || 'min').toLowerCase();
+    if (unit === 'm' || unit === 'mins') unit = 'min';
+    if (unit === 'h' || unit === 'hr' || unit === 'hours') unit = 'hour';
+    if (unit === 'd' || unit === 'days') unit = 'day';
+    v = num + unit;
+  }
+  inp.style.display = 'none';
+  var sel = document.getElementById('tf-select');
+  sel.style.display = '';
+  // Add custom option if not already present
+  var exists = false;
+  for (var i = 0; i < sel.options.length; i++) {
+    if (sel.options[i].value === v) { exists = true; sel.selectedIndex = i; break; }
+  }
+  if (!exists) {
+    var opt = document.createElement('option');
+    opt.value = v;
+    opt.textContent = v;
+    sel.insertBefore(opt, sel.querySelector('option[value="__custom__"]'));
+    opt.selected = true;
+  }
+  applyTimeframe(v);
+}
+function cancelTFCustom() {
+  var inp = document.getElementById('tf-custom');
+  inp.style.display = 'none';
+  var sel = document.getElementById('tf-select');
+  sel.style.display = '';
+  // Revert to current panel TF
+  var p = panels[activePanel];
+  if (p) sel.value = p.timeframe;
+}
+(function() {
+  document.addEventListener('DOMContentLoaded', function() {
+    var inp = document.getElementById('tf-custom');
+    if (inp) {
+      inp.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') { e.preventDefault(); onTFCustomCommit(); }
+        if (e.key === 'Escape') { e.preventDefault(); cancelTFCustom(); }
+      });
+      inp.addEventListener('blur', function() { onTFCustomCommit(); });
+    }
+  });
+})();
+function applyTimeframe(tf) {
   if (!tf) return;
   if (SYNC.interval) {
     var count = getPanelCount(currentLayout);
@@ -675,6 +1788,7 @@ function onTFChange() {
     updatePanelHeader(activePanel);
     if (p.symbol) loadPanelData(activePanel);
   }
+  saveLayout();
 }
 
 // ============================================================================
@@ -694,18 +1808,32 @@ function loadPanelData(idx) {
   if (p.loadAbort) p.loadAbort.abort();
   var ctrl = new AbortController(); p.loadAbort = ctrl;
   fetch('/api/bars?symbol=' + p.symbol + '&start=' + start + '&end=' + end + '&timeframe=' + tf, {signal: ctrl.signal})
-    .then(function(r) { return r.json(); })
+    .then(function(r) {
+      if (!r.ok) return [];
+      return r.json().catch(function() { return []; });
+    })
     .then(function(bars) {
       showPanelLoading(idx, false);
       if (!bars || !bars.length) {
         destroyPanelChart(p);
         var container = p.el.querySelector('.panel-chart');
         container.innerHTML = '<div class="panel-empty">No data for ' + p.symbol + '</div><div class="panel-loading"><div class="spinner"></div></div>';
-        p.bars = null; return;
+        p.bars = null;
+        // Try to fetch a quote even without bar data
+        fetchQuoteFor(p.symbol);
+        return;
       }
       p.bars = bars;
+      // Update quote cache with latest price (daily change)
+      if (p.symbol && bars.length) {
+        var lastBar = bars[bars.length - 1];
+        var pdc = _findPrevDayClose(bars, lastBar);
+        var chg = +(lastBar.close - pdc).toFixed(4);
+        quoteCache[p.symbol] = {price:lastBar.close, change:chg, changePct:pdc ? +((chg/pdc)*100).toFixed(2) : 0};
+        renderSymbolList();
+      }
       renderPanelChart(idx);
-      if (currentLayout === '1' && idx === 0) renderOscPanels(bars);
+      renderPanelOscPanels(idx);
       if (currentLayout !== '1') {
         if (SYNC.time) setupTimeSync();
         if (SYNC.crosshair) setupMultiPanelCrosshairSync();
@@ -723,15 +1851,30 @@ function loadPanelData(idx) {
 // ============================================================================
 function rerender() {
   var count = getPanelCount(currentLayout);
-  for (var i = 0; i < count; i++) { if (panels[i] && panels[i].bars && panels[i].bars.length) renderPanelChart(i); }
-  if (currentLayout === '1' && panels[0] && panels[0].bars && panels[0].bars.length) { renderOscPanels(panels[0].bars); }
-  else { destroyOscPanels(); }
+  for (var i = 0; i < count; i++) rerenderPanel(i);
+}
+function rerenderPanel(idx) {
+  var p = panels[idx];
+  if (!p || !p.bars || !p.bars.length) return;
+  renderPanelChart(idx);
+  renderPanelOscPanels(idx);
 }
 function destroyPanelChart(p) {
+  if (p.drawingManager) { p.drawingManager._cleanup(); p.drawingManager = null; }
   if (p.resizeObs) { p.resizeObs.disconnect(); p.resizeObs = null; }
   if (p.chart) { p.chart.remove(); p.chart = null; p.candleSeries = null; }
 }
-function destroyOscPanels() { oscCharts.forEach(function(oc) { if (oc.resizeObs) oc.resizeObs.disconnect(); if (oc.chart) oc.chart.remove(); if (oc.handleEl && oc.handleEl.parentNode) oc.handleEl.parentNode.removeChild(oc.handleEl); if (oc.panelEl && oc.panelEl.parentNode) oc.panelEl.parentNode.removeChild(oc.panelEl); }); oscCharts = []; }
+function destroyPanelOscPanels(idx) {
+  var p = panels[idx];
+  if (!p) return;
+  p.oscCharts.forEach(function(oc) {
+    if (oc.resizeObs) oc.resizeObs.disconnect();
+    if (oc.chart) oc.chart.remove();
+    if (oc.handleEl && oc.handleEl.parentNode) oc.handleEl.parentNode.removeChild(oc.handleEl);
+    if (oc.panelEl && oc.panelEl.parentNode) oc.panelEl.parentNode.removeChild(oc.panelEl);
+  });
+  p.oscCharts = [];
+}
 
 function renderPanelChart(idx) {
   var p = panels[idx];
@@ -739,36 +1882,38 @@ function renderPanelChart(idx) {
   if (!p.el) return;
   var container = p.el.querySelector('.panel-chart');
   container.innerHTML = '<div class="panel-loading"><div class="spinner"></div></div>';
-  var bars = p.bars;
-  if (!bars || !bars.length) { container.innerHTML = '<div class="panel-empty">No data</div>'; return; }
+  var bars = filterBarsBySession(p.bars, p.session);
+  if (!bars || !bars.length) { container.innerHTML = '<div class="panel-empty">No data for session</div>'; return; }
+  p.filteredBars = bars; // keep reference for OHLCV lookups
   var w = container.clientWidth || 400, h = container.clientHeight || 300;
   if (typeof LightweightCharts === 'undefined') return;
   try {
-    var chOpts = {width:w, height:h, layout:{background:{type:'solid',color:'#0d1117'}, textColor:'#8b949e', fontSize:11}, grid:{vertLines:{color:'#1c2128'}, horzLines:{color:'#1c2128'}}, crosshair:{mode:LightweightCharts.CrosshairMode.Normal}, timeScale:{timeVisible:true, secondsVisible:false, borderColor:'#30363d'}, rightPriceScale:{borderColor:'#30363d'}};
+    var chOpts = getChartOpts(w, h);
     p.chart = LightweightCharts.createChart(container, chOpts);
-    p.candleSeries = p.chart.addCandlestickSeries({upColor:'#3fb950', downColor:'#f85149', borderUpColor:'#3fb950', borderDownColor:'#f85149', wickUpColor:'#3fb950', wickDownColor:'#f85149'});
+    p.candleSeries = p.chart.addCandlestickSeries(getCandleOpts());
     p.candleSeries.setData(bars);
     // Volume
-    if (tgl('tgl-vol')) {
+    if (p.overlays.vol.enabled) {
       var volS = p.chart.addHistogramSeries({priceFormat:{type:'volume'}, priceScaleId:'vol'});
       p.chart.priceScale('vol').applyOptions({scaleMargins:{top:0.85, bottom:0}});
       volS.setData(bars.map(function(b) { return {time:b.time, value:b.volume, color:b.close>=b.open?'rgba(63,185,80,0.3)':'rgba(248,81,73,0.3)'}; }));
     }
-    // Pre-market shade
-    var pmShade = [];
+    // Extended hours shade (pre-market + after-hours get a subtle tint)
+    var extShade = [];
     for (var i = 0; i < bars.length; i++) {
       var _bd = new Date(bars[i].time * 1000);
       var _m = _bd.getUTCHours() * 60 + _bd.getUTCMinutes();
-      if (_m >= 240 && _m < 570) pmShade.push({time:bars[i].time, value:1, color:'rgba(88,166,255,0.07)'});
+      if (_m >= 240 && _m < 570) extShade.push({time:bars[i].time, value:1, color:'rgba(88,166,255,0.06)'}); // Pre-market
+      else if (_m >= 960 && _m < 1200) extShade.push({time:bars[i].time, value:1, color:'rgba(136,106,255,0.06)'}); // After-hours
     }
-    if (pmShade.length > 0) {
+    if (extShade.length > 0) {
       var pmS = p.chart.addHistogramSeries({priceScaleId:'pm-bg', priceLineVisible:false, lastValueVisible:false});
       p.chart.priceScale('pm-bg').applyOptions({scaleMargins:{top:0, bottom:0}, visible:false});
-      pmS.setData(pmShade);
+      pmS.setData(extShade);
     }
     // VWAP
-    if (tgl('tgl-vwap')) {
-      var ov = OV.vwap, vd = [], ctv = 0, cv = 0, lastDay = -1;
+    if (p.overlays.vwap.enabled) {
+      var ov = p.overlays.vwap, vd = [], ctv = 0, cv = 0, lastDay = -1;
       for (var i = 0; i < bars.length; i++) {
         var bd = new Date(bars[i].time * 1000);
         var curDay = bd.getUTCFullYear() * 10000 + bd.getUTCMonth() * 100 + bd.getUTCDate();
@@ -779,43 +1924,131 @@ function renderPanelChart(idx) {
       }
       if (vd.length > 0) { var vs = p.chart.addLineSeries({color:ov.color, lineWidth:ov.lineWidth, lineStyle:ov.lineStyle, crosshairMarkerVisible:false, priceLineVisible:false, lastValueVisible:false}); vs.setData(vd); }
     }
+    // Anchor VWAPs
+    if (p.anchorVwaps.length > 0) {
+      p.anchorVwaps.forEach(function(av) {
+        if (!av.anchorTime) return;
+        var avd = [], ctv = 0, cv = 0;
+        for (var i = 0; i < bars.length; i++) {
+          if (bars[i].time < av.anchorTime) continue;
+          var tp = (bars[i].high + bars[i].low + bars[i].close) / 3;
+          ctv += tp * bars[i].volume; cv += bars[i].volume;
+          if (cv > 0) avd.push({time:bars[i].time, value:Math.round(ctv/cv*10000)/10000});
+        }
+        if (avd.length > 0) { p.chart.addLineSeries({color:av.color, lineWidth:av.lineWidth, lineStyle:av.lineStyle, crosshairMarkerVisible:false, priceLineVisible:false, lastValueVisible:false}).setData(avd); }
+      });
+    }
     // MA overlays
-    if (maOverlays.length > 0) {
-      var cls = bars.map(function(b){return b.close;});
-      maOverlays.forEach(function(ma) {
-        var vals = calcMA(cls, ma.maType, ma.period);
+    if (p.maOverlays.length > 0) {
+      p.maOverlays.forEach(function(ma) {
+        var src = getSource(bars, ma.source || 'close');
+        var vals = calcMA(src, ma.maType, ma.period);
         var data = [];
         for (var i = 0; i < bars.length; i++) { if (vals[i] !== null && vals[i] !== undefined && !isNaN(vals[i])) data.push({time:bars[i].time, value:Math.round(vals[i]*10000)/10000}); }
         if (data.length > 0) { var s = p.chart.addLineSeries({color:ma.color, lineWidth:ma.lineWidth, lineStyle:ma.lineStyle, crosshairMarkerVisible:false, priceLineVisible:false, lastValueVisible:false}); s.setData(data); }
       });
     }
     // Lorentzian Classification
-    if (tgl('tgl-lc')) {
-      var lcResult = calcLorentzian(bars);
+    if (p.overlays.lc.enabled) {
+      var lcResult = calcLorentzian(bars, p.overlays.lc);
       if (lcResult.kernelLine.length > 0) {
-        var ov = OV.lc;
+        var ov = p.overlays.lc;
         var ks = p.chart.addLineSeries({color:ov.color, lineWidth:ov.lineWidth, lineStyle:ov.lineStyle, crosshairMarkerVisible:false, priceLineVisible:false, lastValueVisible:false});
         ks.setData(lcResult.kernelLine);
       }
       if (lcResult.signals.length > 0) { p.candleSeries.setMarkers(lcResult.signals); }
     }
     p.chart.timeScale().fitContent();
+    // Crosshair subscription for OHLCV
+    (function(pidx){
+      p.chart.subscribeCrosshairMove(function(param){
+        var pp = panels[pidx];
+        if(!param.time || !param.seriesData || !param.seriesData.size){
+          if(pp.bars && pp.bars.length) updatePanelOHLCV(pidx, pp.bars[pp.bars.length-1], pp.bars[0]);
+          return;
+        }
+        var candle = param.seriesData.get(pp.candleSeries);
+        if(candle){
+          // LW Charts seriesData has no volume — look up from original bars
+          var _b=pp.filteredBars||pp.bars;if(_b)for(var j=_b.length-1;j>=0;j--){if(_b[j].time===candle.time){candle=_b[j];break;}}
+          updatePanelOHLCV(pidx, candle, pp.bars[0]);
+        }
+      });
+      var _fb=p.filteredBars||p.bars; if(_fb&&_fb.length) updatePanelOHLCV(pidx, _fb[_fb.length-1], _fb[0]);
+      // Anchor VWAP pick handler
+      p.chart.subscribeClick(function(param) {
+        if (!avwapPicking || avwapPicking.panelIdx !== pidx) return;
+        if (!param.time) return;
+        var pp = panels[pidx];
+        var av = pp.anchorVwaps[avwapPicking.avwapIdx];
+        if (av) {
+          av.anchorTime = param.time;
+          cancelAvwapPick();
+          refreshPanelIndicatorBar(pidx);
+          rerenderPanel(pidx);
+        }
+      });
+    })(idx);
     var _p = p;
     p.resizeObs = new ResizeObserver(function() { if (_p.chart) _p.chart.applyOptions({width:container.clientWidth, height:container.clientHeight}); });
     p.resizeObs.observe(container);
+    // Go-to-now button (recreated on every render)
+    var _nowBtn=document.createElement('button');_nowBtn.className='go-now-btn';_nowBtn.title='Scroll to latest';
+    _nowBtn.innerHTML='<svg width="16" height="16" viewBox="0 0 16 16"><path d="M3 2.5l8 5.5-8 5.5z" fill="currentColor"/><rect x="12" y="3" width="2" height="10" rx="0.5" fill="currentColor"/></svg>';
+    (function(pidx){_nowBtn.addEventListener('click',function(e){e.stopPropagation();goToNow(pidx);});})(idx);
+    container.appendChild(_nowBtn);
+    // Indicator overlay button + panel (recreated on chart render)
+    (function(pidx){
+      var indBtn = document.createElement('button'); indBtn.className = 'ind-btn';
+      indBtn.setAttribute('data-panel', pidx);
+      indBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 16 16"><path d="M1 13h14v1H1zm1-6h2v5H2zm4-4h2v9H6zm4 2h2v7h-2zm4-3h2v10h-2z" fill="currentColor"/></svg> Indicators' + getIndicatorCountBadge(pidx);
+      indBtn.addEventListener('click', function(e) { e.stopPropagation(); toggleIndicatorPanel(pidx); });
+      container.appendChild(indBtn);
+      var indPanel = document.createElement('div'); indPanel.className = 'ind-panel';
+      indPanel.id = 'ind-panel-' + pidx;
+      indPanel.setAttribute('data-panel', pidx);
+      container.appendChild(indPanel);
+    })(idx);
+    // Drawing tools
+    if(typeof DrawingManager!=='undefined'){
+      (function(pidx){
+        var pp=panels[pidx];
+        if(pp.drawingManager){
+          pp.drawingManager.attach(pp.chart,pp.candleSeries,container);
+        }else{
+          pp.drawingManager=new DrawingManager(pp.chart,pp.candleSeries,container,
+            function(){return panels[pidx].symbol;},
+            function(){return panels[pidx].bars||[];},
+            function(){return activeLayoutId||'default';}
+          );
+          pp.drawingManager.load();
+        }
+      })(idx);
+    }
   } catch(err) { container.innerHTML = '<div class="panel-empty">Chart error: ' + err.message + '</div>'; console.error(err); }
 }
 
 // ============================================================================
-// OSCILLATOR PANELS
+// OSCILLATOR PANELS (per panel)
 // ============================================================================
 var DEFAULT_PANEL_HEIGHT = 120, MIN_PANEL_HEIGHT = 60, MAX_PANEL_HEIGHT = 500;
 
-function renderOscPanels(bars) {
-  destroyOscPanels();
-  if (!oscillators.length || typeof LightweightCharts === 'undefined') return;
-  var area = document.getElementById('charts-area');
-  oscillators.forEach(function(osc, idx) {
+function renderPanelOscPanels(idx) {
+  destroyPanelOscPanels(idx);
+  var p = panels[idx];
+  if (!p || !p.oscillators.length || typeof LightweightCharts === 'undefined') return;
+  if (!p.el) return;
+  var area = p.el.querySelector('.panel-chart-area');
+  if (!area) return;
+  var bars = p.filteredBars || p.bars;
+  if (!bars || !bars.length) return;
+  p.oscillators.forEach(function(osc, oscIdx) {
+    // Build source-adjusted bars: replace 'close' with chosen data source
+    var oscBars = bars;
+    if (osc.source && osc.source !== 'close') {
+      var srcVals = getSource(bars, osc.source);
+      oscBars = bars.map(function(b, i) { return {time:b.time, open:b.open, high:b.high, low:b.low, close:srcVals[i], volume:b.volume}; });
+    }
     var pH = osc._height || DEFAULT_PANEL_HEIGHT, lw = osc.lineWidth, ls = osc.lineStyle, c1 = osc.color, c2 = osc.color2 || '#f85149';
     var handle = document.createElement('div'); handle.className = 'resize-handle'; area.appendChild(handle);
     var panel = document.createElement('div'); panel.className = 'osc-panel'; panel.style.height = pH + 'px';
@@ -823,18 +2056,19 @@ function renderOscPanels(bars) {
     panel.appendChild(lbl); area.appendChild(panel);
     attachResizeHandle(handle, panel, osc);
     var w = panel.clientWidth || 800;
-    var chart = LightweightCharts.createChart(panel, {width:w, height:pH, layout:{background:{type:'solid',color:'#0d1117'}, textColor:'#8b949e', fontSize:10}, grid:{vertLines:{color:'#1c2128'}, horzLines:{color:'#1c2128'}}, timeScale:{timeVisible:true, secondsVisible:false, borderColor:'#30363d'}, rightPriceScale:{borderColor:'#30363d', scaleMargins:{top:0.1, bottom:0.1}}, crosshair:{mode:LightweightCharts.CrosshairMode.Normal}});
+    var oscOpts=getChartOpts(w,pH);oscOpts.rightPriceScale.scaleMargins={top:0.1,bottom:0.1};
+    var chart = LightweightCharts.createChart(panel, oscOpts);
     if (osc.type === 'RSI') {
-      var d = calcRSI(bars, osc.period), s = chart.addLineSeries({color:c1, lineWidth:lw, lineStyle:ls, priceLineVisible:false, lastValueVisible:true}); s.setData(d);
+      var d = calcRSI(oscBars, osc.period), s = chart.addLineSeries({color:c1, lineWidth:lw, lineStyle:ls, priceLineVisible:false, lastValueVisible:true}); s.setData(d);
       s.createPriceLine({price:70, color:'rgba(248,81,73,0.4)', lineWidth:1, lineStyle:2, axisLabelVisible:false, title:'OB'}); s.createPriceLine({price:50, color:'rgba(139,148,158,0.2)', lineWidth:1, lineStyle:2, axisLabelVisible:false}); s.createPriceLine({price:30, color:'rgba(63,185,80,0.4)', lineWidth:1, lineStyle:2, axisLabelVisible:false, title:'OS'});
     } else if (osc.type === 'CCI') {
-      var d = calcCCI(bars, osc.period), s = chart.addLineSeries({color:c1, lineWidth:lw, lineStyle:ls, priceLineVisible:false, lastValueVisible:true}); s.setData(d);
+      var d = calcCCI(oscBars, osc.period), s = chart.addLineSeries({color:c1, lineWidth:lw, lineStyle:ls, priceLineVisible:false, lastValueVisible:true}); s.setData(d);
       s.createPriceLine({price:100, color:'rgba(248,81,73,0.4)', lineWidth:1, lineStyle:2, axisLabelVisible:false}); s.createPriceLine({price:0, color:'rgba(139,148,158,0.2)', lineWidth:1, lineStyle:2, axisLabelVisible:false}); s.createPriceLine({price:-100, color:'rgba(63,185,80,0.4)', lineWidth:1, lineStyle:2, axisLabelVisible:false});
     } else if (osc.type === 'ADX') {
-      var d = calcADX(bars, osc.period), s = chart.addLineSeries({color:c1, lineWidth:lw, lineStyle:ls, priceLineVisible:false, lastValueVisible:true}); s.setData(d);
+      var d = calcADX(oscBars, osc.period), s = chart.addLineSeries({color:c1, lineWidth:lw, lineStyle:ls, priceLineVisible:false, lastValueVisible:true}); s.setData(d);
       s.createPriceLine({price:25, color:'rgba(88,166,255,0.4)', lineWidth:1, lineStyle:2, axisLabelVisible:false, title:'Strong'}); s.createPriceLine({price:20, color:'rgba(139,148,158,0.2)', lineWidth:1, lineStyle:2, axisLabelVisible:false});
     } else if (osc.type === 'WaveTrend') {
-      var wt = calcWaveTrend(bars, osc.period, osc.period2 || 21);
+      var wt = calcWaveTrend(oscBars, osc.period, osc.period2 || 21);
       chart.addHistogramSeries({priceFormat:{type:'price', precision:2, minMove:0.01}, priceScaleId:'wt', priceLineVisible:false, lastValueVisible:false}).setData(wt.histogram);
       var w1 = chart.addLineSeries({color:c1, lineWidth:lw, lineStyle:ls, priceLineVisible:false, lastValueVisible:true, priceScaleId:'wt'}); w1.setData(wt.wt1);
       chart.addLineSeries({color:c2, lineWidth:Math.max(1,lw-1), lineStyle:ls, priceLineVisible:false, lastValueVisible:false, priceScaleId:'wt'}).setData(wt.wt2);
@@ -842,22 +2076,32 @@ function renderOscPanels(bars) {
       w1.createPriceLine({price:60, color:'rgba(248,81,73,0.5)', lineWidth:1, lineStyle:2, axisLabelVisible:false, title:'OB1'}); w1.createPriceLine({price:53, color:'rgba(248,81,73,0.25)', lineWidth:1, lineStyle:3, axisLabelVisible:false}); w1.createPriceLine({price:0, color:'rgba(139,148,158,0.25)', lineWidth:1, lineStyle:2, axisLabelVisible:false}); w1.createPriceLine({price:-53, color:'rgba(63,185,80,0.25)', lineWidth:1, lineStyle:3, axisLabelVisible:false}); w1.createPriceLine({price:-60, color:'rgba(63,185,80,0.5)', lineWidth:1, lineStyle:2, axisLabelVisible:false, title:'OS1'});
       chart.priceScale('wt').applyOptions({scaleMargins:{top:0.05, bottom:0.05}});
     } else if (osc.type === 'MACD') {
-      var md = calcMACD(bars, osc.period, osc.period2 || 26);
+      var md = calcMACD(oscBars, osc.period, osc.period2 || 26);
       chart.addHistogramSeries({priceFormat:{type:'price', precision:4, minMove:0.0001}, priceScaleId:'macd', priceLineVisible:false, lastValueVisible:false}).setData(md.histogram);
       var s1 = chart.addLineSeries({color:c1, lineWidth:lw, lineStyle:ls, priceLineVisible:false, lastValueVisible:true, priceScaleId:'macd'}); s1.setData(md.macd);
       chart.addLineSeries({color:c2, lineWidth:Math.max(1,lw-1), lineStyle:ls, priceLineVisible:false, lastValueVisible:false, priceScaleId:'macd'}).setData(md.signal);
       s1.createPriceLine({price:0, color:'rgba(139,148,158,0.3)', lineWidth:1, lineStyle:2, axisLabelVisible:false});
       chart.priceScale('macd').applyOptions({scaleMargins:{top:0.05, bottom:0.05}});
     } else if (osc.type === 'Stochastic') {
-      var sd = calcStochastic(bars, osc.period, osc.period2 || 3);
+      var sd = calcStochastic(oscBars, osc.period, osc.period2 || 3);
       var s1 = chart.addLineSeries({color:c1, lineWidth:lw, lineStyle:ls, priceLineVisible:false, lastValueVisible:true}); s1.setData(sd.k);
       chart.addLineSeries({color:c2, lineWidth:Math.max(1,lw-1), lineStyle:ls, priceLineVisible:false, lastValueVisible:false}).setData(sd.d);
       s1.createPriceLine({price:80, color:'rgba(248,81,73,0.4)', lineWidth:1, lineStyle:2, axisLabelVisible:false}); s1.createPriceLine({price:50, color:'rgba(139,148,158,0.2)', lineWidth:1, lineStyle:2, axisLabelVisible:false}); s1.createPriceLine({price:20, color:'rgba(63,185,80,0.4)', lineWidth:1, lineStyle:2, axisLabelVisible:false});
     }
-    chart.timeScale().fitContent();
     var ro = new ResizeObserver(function() { chart.applyOptions({width:panel.clientWidth, height:panel.clientHeight}); }); ro.observe(panel);
-    oscCharts.push({chart:chart, resizeObs:ro, panelEl:panel, handleEl:handle});
+    p.oscCharts.push({chart:chart, resizeObs:ro, panelEl:panel, handleEl:handle});
   });
+  // Sync all osc panels to the main chart's visible time range
+  if (p.chart) {
+    var mainTimeRange = p.chart.timeScale().getVisibleRange();
+    if (mainTimeRange) {
+      p.oscCharts.forEach(function(oc) {
+        if (oc.chart) try { oc.chart.timeScale().setVisibleRange(mainTimeRange); } catch(e) {}
+      });
+    } else {
+      p.oscCharts.forEach(function(oc) { if (oc.chart) oc.chart.timeScale().fitContent(); });
+    }
+  }
   setupTimeSync();
   setupCrosshairSync();
 }
@@ -876,25 +2120,72 @@ function attachResizeHandle(handle, panel, osc) {
 // ============================================================================
 // TIME SCALE SYNC
 // ============================================================================
-function syncAllTimeScales(range, sourceIdx) {
-  if (syncing || !range) return;
-  syncing = true;
-  var count = getPanelCount(currentLayout);
-  for (var i = 0; i < count; i++) { if (i !== sourceIdx && panels[i] && panels[i].chart) { try { panels[i].chart.timeScale().setVisibleLogicalRange(range); } catch(e) {} } }
-  oscCharts.forEach(function(oc) { if (oc.chart) try { oc.chart.timeScale().setVisibleLogicalRange(range); } catch(e) {} });
-  syncing = false;
+// Time-based sync helper — propagates visible TIME range (not logical indices)
+// so charts with different data lengths stay aligned by timestamp.
+function _syncTimeRange(sourceChart, targetCharts) {
+  var tr = sourceChart.timeScale().getVisibleRange();
+  if (!tr) return;
+  targetCharts.forEach(function(tc) {
+    if (tc) try { tc.timeScale().setVisibleRange(tr); } catch(e) {}
+  });
 }
-function setupTimeSync() {
-  if (currentLayout === '1' && panels[0] && panels[0].chart) {
-    var mc = panels[0].chart;
-    mc.timeScale().subscribeVisibleLogicalRangeChange(function(r) { if (syncing || !r) return; syncing = true; oscCharts.forEach(function(oc) { if (oc.chart) try { oc.chart.timeScale().setVisibleLogicalRange(r); } catch(e) {} }); syncing = false; });
-    oscCharts.forEach(function(oc) { oc.chart.timeScale().subscribeVisibleLogicalRangeChange(function(r) { if (syncing || !r) return; syncing = true; try { mc.timeScale().setVisibleLogicalRange(r); } catch(e) {} oscCharts.forEach(function(o) { if (o.chart !== oc.chart) try { o.chart.timeScale().setVisibleLogicalRange(r); } catch(e) {} }); syncing = false; }); });
-  }
-  if (SYNC.time && currentLayout !== '1') {
+function syncAllTimeScales(sourceChart, sourceIdx) {
+  if (syncing) return;
+  syncing = true;
+  var tr = sourceChart.timeScale().getVisibleRange();
+  if (tr) {
     var count = getPanelCount(currentLayout);
     for (var i = 0; i < count; i++) {
+      if (i !== sourceIdx && panels[i] && panels[i].chart) { try { panels[i].chart.timeScale().setVisibleRange(tr); } catch(e) {} }
+      if (panels[i]) {
+        panels[i].oscCharts.forEach(function(oc) { if (oc.chart) try { oc.chart.timeScale().setVisibleRange(tr); } catch(e) {} });
+      }
+    }
+  }
+  syncing = false;
+}
+function _setupPanelOscSync(panelIdx) {
+  var mc = panels[panelIdx].chart;
+  if (!mc) return;
+  var pOscCharts = panels[panelIdx].oscCharts;
+  // Main chart → osc panels
+  mc.timeScale().subscribeVisibleLogicalRangeChange(function() {
+    if (syncing) return; syncing = true;
+    var targets = pOscCharts.map(function(oc) { return oc.chart; });
+    _syncTimeRange(mc, targets);
+    syncing = false;
+  });
+  // Osc panel → main chart + other osc panels
+  pOscCharts.forEach(function(oc) {
+    oc.chart.timeScale().subscribeVisibleLogicalRangeChange(function() {
+      if (syncing) return; syncing = true;
+      try { var tr = oc.chart.timeScale().getVisibleRange(); if (tr) mc.timeScale().setVisibleRange(tr); } catch(e) {}
+      pOscCharts.forEach(function(o) {
+        if (o.chart !== oc.chart) { try { var tr = oc.chart.timeScale().getVisibleRange(); if (tr) o.chart.timeScale().setVisibleRange(tr); } catch(e) {} }
+      });
+      syncing = false;
+    });
+  });
+}
+function setupTimeSync() {
+  // Single layout: sync main chart with its oscillator panels
+  if (currentLayout === '1') {
+    _setupPanelOscSync(0);
+    return;
+  }
+  // Multi-layout: always sync osc sub-panels within each panel
+  var count = getPanelCount(currentLayout);
+  for (var i = 0; i < count; i++) {
+    if (!panels[i] || !panels[i].chart) continue;
+    _setupPanelOscSync(i);
+  }
+  // Cross-panel sync if enabled
+  if (SYNC.time) {
+    for (var i = 0; i < count; i++) {
       if (!panels[i] || !panels[i].chart) continue;
-      (function(idx) { panels[idx].chart.timeScale().subscribeVisibleLogicalRangeChange(function(r) { syncAllTimeScales(r, idx); }); })(i);
+      (function(pidx) {
+        panels[pidx].chart.timeScale().subscribeVisibleLogicalRangeChange(function() { syncAllTimeScales(panels[pidx].chart, pidx); });
+      })(i);
     }
   }
 }
@@ -903,6 +2194,7 @@ function setupTimeSync() {
 // CROSSHAIR SYNC
 // ============================================================================
 function setupCrosshairSync() {
+  // For single layout: sync main chart crosshair with its oscillator panels
   if (currentLayout === '1' && panels[0] && panels[0].chart) {
     var entries = [];
     var mainEl = panels[0].el ? panels[0].el.querySelector('.panel-chart') : null;
@@ -912,7 +2204,7 @@ function setupCrosshairSync() {
       mainEl.appendChild(ml);
       entries.push({chart:panels[0].chart, line:ml});
     }
-    oscCharts.forEach(function(oc) {
+    panels[0].oscCharts.forEach(function(oc) {
       var ol = document.createElement('div');
       ol.style.cssText = 'display:none;position:absolute;top:0;bottom:0;width:1px;background:rgba(139,148,158,0.4);pointer-events:none;z-index:20;';
       oc.panelEl.appendChild(ol);
@@ -934,7 +2226,47 @@ function setupCrosshairSync() {
       });
     }
   }
-  if (SYNC.crosshair && currentLayout !== '1') setupMultiPanelCrosshairSync();
+  // For multi-layout: also sync oscillator sub-panels within each panel
+  if (currentLayout !== '1') {
+    var count = getPanelCount(currentLayout);
+    for (var pi = 0; pi < count; pi++) {
+      if (!panels[pi] || !panels[pi].chart || !panels[pi].el) continue;
+      if (panels[pi].oscCharts.length > 0) {
+        (function(panelIdx) {
+          var pEntries = [];
+          var pMainEl = panels[panelIdx].el.querySelector('.panel-chart');
+          if (pMainEl) {
+            var pml = document.createElement('div');
+            pml.style.cssText = 'display:none;position:absolute;top:0;bottom:0;width:1px;background:rgba(139,148,158,0.4);pointer-events:none;z-index:20;';
+            pMainEl.appendChild(pml);
+            pEntries.push({chart:panels[panelIdx].chart, line:pml});
+          }
+          panels[panelIdx].oscCharts.forEach(function(oc) {
+            var ol = document.createElement('div');
+            ol.style.cssText = 'display:none;position:absolute;top:0;bottom:0;width:1px;background:rgba(139,148,158,0.4);pointer-events:none;z-index:20;';
+            oc.panelEl.appendChild(ol);
+            pEntries.push({chart:oc.chart, line:ol});
+          });
+          if (pEntries.length >= 2) {
+            pEntries.forEach(function(entry, i) {
+              entry.chart.subscribeCrosshairMove(function(param) {
+                if (crosshairSyncing) return; crosshairSyncing = true;
+                pEntries.forEach(function(other, j) {
+                  if (i === j) { other.line.style.display = 'none'; return; }
+                  if (!param.time) { other.line.style.display = 'none'; return; }
+                  var x = other.chart.timeScale().timeToCoordinate(param.time);
+                  if (x !== null && x >= 0) { other.line.style.display = 'block'; other.line.style.left = x + 'px'; }
+                  else { other.line.style.display = 'none'; }
+                });
+                crosshairSyncing = false;
+              });
+            });
+          }
+        })(pi);
+      }
+    }
+    if (SYNC.crosshair) setupMultiPanelCrosshairSync();
+  }
 }
 function setupMultiPanelCrosshairSync() {
   var count = getPanelCount(currentLayout);
@@ -967,6 +2299,42 @@ function setupMultiPanelCrosshairSync() {
 }
 
 // ============================================================================
+// DISPLAY SETTINGS POPUP
+// ============================================================================
+function openDisplaySettings(evt) {
+  evt.stopPropagation();
+  var popup = document.getElementById('display-popup');
+  var ds = displaySettings;
+  popup.innerHTML = '<div class="dp-header"><span class="dp-title">Display Settings</span><span class="dp-close" onclick="closeDisplaySettings()">&times;</span></div>'+
+    '<div class="dp-section"><div class="dp-section-title">Font Size</div>'+
+    '<div class="dp-row"><span class="dp-label">UI Font</span><input type="range" class="dp-range" min="9" max="16" value="'+ds.fontSize+'" oninput="setDisplayVal(\'fontSize\',+this.value);this.nextElementSibling.textContent=this.value+\'px\'"><span class="dp-val">'+ds.fontSize+'px</span></div></div>'+
+    '<div class="dp-section"><div class="dp-section-title">Chart Colors</div>'+
+    '<div class="dp-row"><span class="dp-label">Background</span><input type="color" class="dp-color" value="'+ds.chartBg+'" onchange="setDisplayVal(\'chartBg\',this.value)"></div>'+
+    '<div class="dp-row"><span class="dp-label">Grid</span><input type="color" class="dp-color" value="'+ds.gridColor+'" onchange="setDisplayVal(\'gridColor\',this.value)"></div>'+
+    '<div class="dp-row"><span class="dp-label">Text</span><input type="color" class="dp-color" value="'+ds.textColor+'" onchange="setDisplayVal(\'textColor\',this.value)"></div>'+
+    '<div class="dp-row"><span class="dp-label">Candle Up</span><input type="color" class="dp-color" value="'+ds.candleUp+'" onchange="setDisplayVal(\'candleUp\',this.value)"></div>'+
+    '<div class="dp-row"><span class="dp-label">Candle Down</span><input type="color" class="dp-color" value="'+ds.candleDown+'" onchange="setDisplayVal(\'candleDown\',this.value)"></div>'+
+    '<div class="dp-row"><span class="dp-label">Border</span><input type="color" class="dp-color" value="'+ds.borderColor+'" onchange="setDisplayVal(\'borderColor\',this.value)"></div></div>'+'<div style="padding-top:8px;border-top:1px solid #30363d;margin-top:4px"><button onclick="resetDisplaySettings()" style="width:100%;padding:6px;background:#21262d;border:1px solid #30363d;color:#c9d1d9;border-radius:4px;cursor:pointer;font-size:11px">Reset to Defaults</button></div>';
+  popup.style.display = 'block';
+  var r = evt.target.getBoundingClientRect();
+  popup.style.top = (r.bottom + 4) + 'px';
+  popup.style.right = (window.innerWidth - r.right) + 'px';
+  popup.style.left = 'auto';
+}
+function closeDisplaySettings() { document.getElementById('display-popup').style.display = 'none'; }
+function resetDisplaySettings() { displaySettings=JSON.parse(JSON.stringify(DEFAULT_DISPLAY)); applyDisplaySettings(); saveToStorage('orb_display',displaySettings); rerender(); closeDisplaySettings(); }
+function setDisplayVal(key, val) {
+  displaySettings[key] = val;
+  applyDisplaySettings();
+  saveToStorage('orb_display', displaySettings);
+  rerender();
+}
+document.addEventListener('click', function(e) {
+  var dp = document.getElementById('display-popup');
+  if (dp.style.display === 'block' && !dp.contains(e.target) && !e.target.closest('.display-settings-btn')) closeDisplaySettings();
+});
+
+// ============================================================================
 // KEYBOARD NAVIGATION
 // ============================================================================
 document.addEventListener('keydown', function(e) {
@@ -978,7 +2346,8 @@ document.addEventListener('keydown', function(e) {
     var curIdx = -1;
     visItems.forEach(function(el, i) { if (el.classList.contains('active')) curIdx = i; });
     var nIdx = e.key === 'ArrowUp' ? Math.max(0, curIdx - 1) : Math.min(visItems.length - 1, curIdx + 1);
-    selectSymbol(visItems[nIdx].textContent);
+    var symEl = visItems[nIdx].querySelector('.si-symbol');
+    if (symEl) selectSymbol(symEl.textContent);
     visItems[nIdx].scrollIntoView({block:'nearest'});
   }
 });
@@ -990,21 +2359,122 @@ document.getElementById('dt-end').addEventListener('change', function() { active
 // ============================================================================
 // INIT
 // ============================================================================
-(function() {
-  updateSwatches();
+function _doInit() {
+  // Load saved display settings
+  var savedDisplay = loadFromStorage('orb_display');
+  if (savedDisplay) { for (var k in savedDisplay) { if (savedDisplay.hasOwnProperty(k)) displaySettings[k] = savedDisplay[k]; } applyDisplaySettings(); }
   var today = new Date();
   document.getElementById('dt-end').value = fmtDate(today);
   document.getElementById('dt-start').value = fmtDate(addDays(today, -7));
-  panels.push(makePanel(0));
-  createPanelElements(1);
+
+  // Load saved layouts (multi-layout system)
+  loadLayouts();
+  var ly = getActiveLayout();
+  currentLayout = ly ? ly.layout || '1' : '1';
+  var savedPanels = ly ? ly.panels || null : null;
+  var initCount = getPanelCount(currentLayout);
+  for (var i = 0; i < initCount; i++) {
+    var p = makePanel(i);
+    if (savedPanels && savedPanels[i]) {
+      p.symbol = savedPanels[i].symbol || null;
+      p.timeframe = savedPanels[i].timeframe || '5min';
+      p.assetClass = savedPanels[i].assetClass || 'stocks';
+      p.session = savedPanels[i].session || 'extended';
+    }
+    panels.push(p);
+  }
+  document.getElementById('layout-select').value = currentLayout;
+  document.querySelectorAll('.layout-tab').forEach(function(t){ t.classList.toggle('active', t.getAttribute('data-layout')===currentLayout); });
+  createPanelElements(initCount);
+  document.getElementById('panels-grid').className = 'layout-' + currentLayout;
+  document.getElementById('tf-select').value = panels[0].timeframe;
+  renderNamedLayoutTabs();
+
+  // One-time migration: move old orb_drawings_SYMBOL keys to layout-scoped keys
+  if (activeLayoutId) {
+    var cacheKeys = Object.keys(__stateCache);
+    for (var ki = 0; ki < cacheKeys.length; ki++) {
+      var ck = cacheKeys[ki];
+      if (ck.indexOf('orb_drawings_') === 0 && ck.indexOf('orb_drawings_ly_') !== 0) {
+        var dSym = ck.substring('orb_drawings_'.length);
+        saveToStorage('orb_drawings_' + activeLayoutId + '_' + dSym, loadFromStorage(ck));
+        deleteFromStorage(ck);
+      }
+    }
+  }
+
+  // Load saved font size
+  var savedFont = loadFromStorage('orb_list_font');
+  if (savedFont != null) listFontIdx = savedFont;
+  applyListFontSize();
+
+  // Load saved watchlists or create default
+  var savedWL = loadFromStorage('orb_watchlists');
+  if (savedWL && savedWL.lists && savedWL.lists.length) {
+    watchlists = savedWL.lists;
+    activeWLIdx = savedWL.active || 0;
+    if (activeWLIdx >= watchlists.length) activeWLIdx = 0;
+  }
+
   fetch('/api/symbols')
     .then(function(r) { return r.json(); })
     .then(function(symbols) {
       allSymbols = symbols;
+      // If no watchlists, create default with all symbols
+      if (!watchlists.length) {
+        var wl = makeWatchlist('Main');
+        wl.groups[0].symbols = symbols.slice();
+        watchlists.push(wl);
+      }
+      renderWLTabs();
       renderSymbolList();
-      if (symbols.length > 0) selectSymbol(symbols[0]);
+      // Restore saved symbols or select first available
+      var loaded = false;
+      for (var i = 0; i < panels.length; i++) {
+        if (panels[i].symbol) { updatePanelHeader(i); loadPanelData(i); loaded = true; }
+      }
+      if (!loaded && symbols.length > 0) selectSymbol(symbols[0]);
+      // Fetch quotes for price data and start polling
+      fetchAllQuotes();
+      startQuotePolling();
     })
     .catch(function(err) { console.error('Failed to load symbols:', err); });
+
+  // Add symbol input handler
+  var addInput = document.getElementById('add-sym-input');
+  if (addInput) {
+    addInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') { e.preventDefault(); addSymbolToWL(this.value); this.value = ''; }
+    });
+  }
+
+  // Stop scroll events on sidebar from propagating to chart
+  document.getElementById('sidebar').addEventListener('wheel', function(e) {
+    e.stopPropagation();
+  }, true);
+}
+
+// Bulk-load server state, migrate localStorage if needed, then init
+(function() {
+  fetch('/api/state/all')
+    .then(function(r) { return r.ok ? r.json() : {}; })
+    .then(function(data) { _initStateCache(data); })
+    .catch(function() { _initStateCache({}); })
+    .finally(function() {
+      // One-time migration from localStorage to server
+      if (!loadFromStorage('orb_layouts') && !loadFromStorage('orb_layout') && localStorage.getItem('orb_layout')) {
+        ['orb_layout','orb_watchlists','orb_display','orb_list_font'].forEach(function(k) {
+          try { var v = localStorage.getItem(k); if (v) { saveToStorage(k, JSON.parse(v)); localStorage.removeItem(k); } } catch(e) {}
+        });
+        for (var i = 0; i < localStorage.length; i++) {
+          var k = localStorage.key(i);
+          if (k && k.indexOf('orb_drawings_') === 0) {
+            try { saveToStorage(k, JSON.parse(localStorage.getItem(k))); localStorage.removeItem(k); } catch(e) {}
+          }
+        }
+      }
+      _doInit();
+    });
 })();
 </script>
 </body>
