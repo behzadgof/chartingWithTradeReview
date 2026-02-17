@@ -208,6 +208,24 @@ class TestMarketMode:
         except urllib.error.HTTPError as e:
             assert e.code == 400
 
+    def test_api_bars_batch_missing_params(self, market_server):
+        port, _ = market_server
+        url = f"http://localhost:{port}/api/bars/batch"
+        try:
+            urllib.request.urlopen(url)
+        except urllib.error.HTTPError as e:
+            assert e.code == 400
+
+    def test_api_bars_batch_returns_dict(self, market_server):
+        port, _ = market_server
+        url = f"http://localhost:{port}/api/bars/batch?symbols=AAPL,MSFT&start=2024-01-17&end=2024-01-17&timeframe=5min"
+        resp = urllib.request.urlopen(url)
+        data = json.loads(resp.read())
+        assert isinstance(data, dict)
+        assert "AAPL" in data
+        assert "MSFT" in data
+        assert isinstance(data["AAPL"], list)
+
 
 class TestStateAPI:
     """Test UI state persistence API endpoints."""

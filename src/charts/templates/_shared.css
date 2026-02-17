@@ -94,6 +94,35 @@
 .ph-bidask .ba-lbl { color: #484f58; font-weight: 400; }
 .ph-tz { color: #484f58; font-size: 10px; margin-left: 6px; font-weight: 400; white-space: nowrap; }
 
+/* Chart type selector in panel header */
+.ph-chart-type { cursor: pointer; color: #8b949e; font-size: 10px; padding: 1px 5px; border: 1px solid #30363d; border-radius: 3px; background: #21262d; user-select: none; white-space: nowrap; }
+.ph-chart-type:hover { color: #c9d1d9; border-color: #484f58; background: #30363d; }
+
+/* Compare controls in panel header */
+.ph-compare-add { cursor: pointer; color: #484f58; font-size: 14px; font-weight: bold; padding: 0 4px; border-radius: 3px; transition: all 0.1s; user-select: none; }
+.ph-compare-add:hover { color: #58a6ff; background: #21262d; }
+.ph-compare-tag { cursor: pointer; display: inline-flex; align-items: center; gap: 3px; padding: 1px 6px; border: 1px solid; border-radius: 3px; font-size: 10px; font-weight: 600; margin: 0 2px; user-select: none; }
+.ph-compare-remove { cursor: pointer; font-size: 12px; opacity: 0.6; margin-left: 2px; }
+.ph-compare-remove:hover { opacity: 1; }
+.ph-mode-toggle { display: inline-flex; gap: 0; margin: 0 4px; }
+.ph-mode-btn { background: #21262d; border: 1px solid #30363d; color: #8b949e; font-size: 10px; font-weight: 700; padding: 1px 6px; cursor: pointer; transition: all 0.1s; }
+.ph-mode-btn:first-child { border-radius: 3px 0 0 3px; }
+.ph-mode-btn:last-child { border-radius: 0 3px 3px 0; border-left: none; }
+.ph-mode-btn.active { background: #0d2240; color: #58a6ff; border-color: #58a6ff; }
+.ph-mode-btn:hover:not(.active) { color: #c9d1d9; background: #30363d; }
+.compare-input-wrap { display: inline-flex; margin: 0 4px; }
+.compare-input { width: 80px; background: #0d1117; border: 1px solid #58a6ff; color: #c9d1d9; padding: 1px 6px; border-radius: 3px; font-size: 11px; outline: none; }
+.ph-compare-prices { display: inline-flex; gap: 8px; margin-left: 6px; font-size: 10px; font-family: 'SF Mono','Consolas','Menlo',monospace; white-space: nowrap; }
+.ph-compare-price { white-space: nowrap; font-weight: 600; }
+
+/* Compare context menu */
+.ctx-menu { position: fixed; z-index: 300; background: #1c2128; border: 1px solid #30363d; border-radius: 6px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); min-width: 140px; padding: 4px 0; font-size: 12px; }
+.ctx-menu-item { padding: 5px 12px; color: #c9d1d9; cursor: pointer; display: flex; align-items: center; gap: 6px; }
+.ctx-menu-item:hover { background: #21262d; }
+.ctx-menu-item.danger { color: #f85149; }
+.ctx-menu-item.danger:hover { background: #3d1214; }
+.ctx-menu-sep { height: 1px; background: #30363d; margin: 4px 0; }
+
 /* Indicator overlay button (top-left of chart, after drawing toolbar) */
 .ind-btn { position: absolute; top: 6px; left: 40px; z-index: 30; background: #21262d; border: 1px solid #30363d; border-radius: 4px; padding: 3px 8px; cursor: pointer; color: #8b949e; font-size: 11px; font-weight: 600; display: flex; align-items: center; gap: 4px; transition: all 0.15s; user-select: none; }
 .ind-btn:hover { background: #30363d; color: #c9d1d9; border-color: #484f58; }

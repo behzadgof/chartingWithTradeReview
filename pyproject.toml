@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "charts"
-version = "0.3.0"
+version = "0.4.0"
 description = "Interactive market data and trade review charts — TradingView Lightweight Charts"
 readme = "README.md"
 requires-python = ">=3.11"

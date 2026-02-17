@@ -6,6 +6,7 @@ Routes:
     GET  /trades             → trades.html (trade review)
     GET  /api/symbols        → JSON symbol list
     GET  /api/bars           → JSON bars (params: symbol, start, end, timeframe)
+    GET  /api/bars/batch     → JSON bars for multiple symbols (params: symbols, start, end, timeframe)
     GET  /api/quotes/live    → JSON live quotes (params: symbols)
     GET  /api/trades         → JSON trade records
     GET  /api/trades/summary → JSON summary stats
@@ -25,6 +26,7 @@ from typing import Any
 
 from charts.server.data import (
     fetch_bars,
+    fetch_bars_batch,
     fetch_live_quotes,
     fetch_quotes,
     get_available_symbols,
@@ -104,6 +106,8 @@ class ChartRequestHandler(http.server.BaseHTTPRequestHandler):
             self._serve_trades()
         elif path == "/api/symbols":
             self._send_json(get_available_symbols(self._cfg("cache_dir")))
+        elif path == "/api/bars/batch":
+            self._serve_bars_batch(params)
         elif path == "/api/bars":
             self._serve_bars(params)
         elif path == "/api/quotes/live":
@@ -181,6 +185,29 @@ class ChartRequestHandler(http.server.BaseHTTPRequestHandler):
         except Exception:
             bars = []
         self._send_json(bars)
+
+    def _serve_bars_batch(self, params: dict) -> None:
+        syms_raw = (params.get("symbols") or [None])[0]
+        start = (params.get("start") or [None])[0]
+        end = (params.get("end") or [None])[0]
+        timeframe = (params.get("timeframe") or ["1min"])[0]
+
+        if not syms_raw or not start or not end:
+            self._send_json(
+                {"error": "Missing symbols, start, or end"}, 400,
+            )
+            return
+
+        symbols = [s.strip().upper() for s in syms_raw.split(",") if s.strip()]
+        try:
+            result = fetch_bars_batch(
+                symbols, start, end, timeframe,
+                cache_dir=self._cfg("cache_dir"),
+                manager=self._cfg("market_data"),
+            )
+        except Exception:
+            result = {s: [] for s in symbols}
+        self._send_json(result)
 
     def _serve_quotes(self, params: dict | None = None) -> None:
         try:

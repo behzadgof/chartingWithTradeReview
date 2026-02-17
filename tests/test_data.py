@@ -14,6 +14,7 @@ from charts.server.data import (
     aggregate_bars,
     bars_to_json,
     fetch_bars,
+    fetch_bars_batch,
     fetch_quotes,
     load_bars_from_cache,
     load_bars_from_manager,
@@ -318,3 +319,34 @@ class TestFetchQuotes:
     def test_no_sources(self):
         result = fetch_quotes(["AAPL"])
         assert result == {}
+
+
+# ---------------------------------------------------------------------------
+# fetch_bars_batch
+# ---------------------------------------------------------------------------
+
+class TestFetchBarsBatch:
+    def test_empty_symbols(self):
+        result = fetch_bars_batch([], "2024-01-17", "2024-01-17")
+        assert result == {}
+
+    def test_multiple_symbols_from_cache(self, tmp_path):
+        for sym in ["AAPL", "MSFT"]:
+            sym_dir = tmp_path / sym
+            sym_dir.mkdir()
+            df = _make_1min_df("2024-01-17 10:00", 5)
+            df.to_parquet(sym_dir / "1min_2024-01-17_2024-01-17.parquet")
+
+        result = fetch_bars_batch(
+            ["AAPL", "MSFT"], "2024-01-17", "2024-01-17", cache_dir=tmp_path,
+        )
+        assert "AAPL" in result
+        assert "MSFT" in result
+        assert len(result["AAPL"]) == 5
+        assert len(result["MSFT"]) == 5
+
+    def test_missing_symbol_returns_empty_list(self, tmp_path):
+        result = fetch_bars_batch(
+            ["NONEXIST"], "2024-01-17", "2024-01-17", cache_dir=tmp_path,
+        )
+        assert result["NONEXIST"] == []

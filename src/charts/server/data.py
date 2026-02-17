@@ -260,6 +260,25 @@ def fetch_bars(
     return bars_to_json(df)
 
 
+def fetch_bars_batch(
+    symbols: list[str],
+    start: str,
+    end: str,
+    timeframe: str = "1min",
+    cache_dir: str | Path | None = None,
+    manager: Any = None,
+) -> dict[str, list[dict[str, Any]]]:
+    """Fetch bars for multiple symbols.
+
+    Returns ``{symbol: bars_list}`` where each value is the same format
+    as :func:`fetch_bars`.
+    """
+    return {
+        sym: fetch_bars(sym, start, end, timeframe, cache_dir, manager)
+        for sym in symbols
+    }
+
+
 def _load_latest_bars_from_cache(
     symbol: str, cache_dir: str | Path,
 ) -> pd.DataFrame:

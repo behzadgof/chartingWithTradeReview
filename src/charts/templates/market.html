@@ -317,6 +317,8 @@ var OSC_DEFAULTS = {
 var MA_TYPES = ['SMA','EMA','WMA','DEMA','TEMA','HMA','KAMA','T3','TRIMA','LSMA','SMMA'];
 var MA_COLORS = ['#ff6b9d','#c792ea','#e5c07b','#56b6c2','#98c379','#61afef'];
 var AVWAP_COLORS = ['#ff9800','#4fc3f7','#ce93d8','#81c784','#ffb74d','#e57373'];
+var COMPARE_COLORS = ['#61afef','#e5c07b','#c678dd','#56b6c2','#e06c75','#98c379','#d19a66','#be5046'];
+var CT_ABBR = {candlestick:'Candle', bar:'Bar', line:'Line', area:'Area', baseline:'Baseline'};
 var activePeriod = '5D';
 var SYNC = { symbol: true, interval: false, crosshair: true, time: false, dateRange: false };
 
@@ -808,6 +810,27 @@ function buildPanelHeaderHTML(idx) {
   var html = '<span class="ph-symbol">' + sym + '</span>';
   html += '<span class="ph-dot">\u00b7</span>';
   html += '<span class="ph-tf">' + tf + '</span>';
+  // Chart type selector
+  html += '<span class="ph-chart-type" onclick="event.stopPropagation();showPrimaryChartTypeCtx(event,'+idx+')" title="Chart type">';
+  html += (CT_ABBR[p.chartType || 'candlestick'] || 'Candle') + ' &#9662;';
+  html += '</span>';
+  // Compare: add button
+  html += '<span class="ph-compare-add" onclick="event.stopPropagation();showCompareInput('+idx+')" title="Compare symbol">+</span>';
+  // Compare: symbol tags
+  if (p.compareSymbols && p.compareSymbols.length > 0) {
+    for (var ci = 0; ci < p.compareSymbols.length; ci++) {
+      var cs = p.compareSymbols[ci];
+      html += '<span class="ph-compare-tag" style="border-color:'+cs.color+';color:'+cs.color+'" onclick="event.stopPropagation();showCompareCtx(event,'+idx+','+ci+')" oncontextmenu="event.preventDefault();event.stopPropagation();showCompareCtx(event,'+idx+','+ci+')" title="Click to change chart style">';
+      html += cs.symbol;
+      html += '<span class="ph-compare-remove" onclick="event.stopPropagation();removeCompareSymbol('+idx+','+ci+')">&times;</span>';
+      html += '</span>';
+    }
+    // Mode toggle
+    html += '<span class="ph-mode-toggle">';
+    html += '<button class="ph-mode-btn'+(p.compareMode==='price'?' active':'')+'" onclick="event.stopPropagation();setCompareMode('+idx+',\'price\')" title="Price">$</button>';
+    html += '<button class="ph-mode-btn'+(p.compareMode==='performance'?' active':'')+'" onclick="event.stopPropagation();setCompareMode('+idx+',\'performance\')" title="Performance">%</button>';
+    html += '</span>';
+  }
   html += '<span class="ph-ohlcv" id="ph-ohlcv-'+idx+'">';
   if (o.open !== undefined) {
     var chg = o.close - o.prevClose;
@@ -826,6 +849,8 @@ function buildPanelHeaderHTML(idx) {
   if (o.open !== undefined) {
     html+='<span class="ph-bidask"><span><span class="ba-lbl">Bid</span> <span class="bid">'+bid+'</span></span><span><span class="ba-lbl">Ask</span> <span class="ask">'+ask+'</span></span></span>';
   }
+  // Compare: crosshair prices
+  html += '<span class="ph-compare-prices" id="ph-cmp-'+idx+'"></span>';
   html += '<span class="ph-tz">ET</span>';
   return html;
 }
@@ -866,6 +891,210 @@ function updatePanelOHLCV(idx, bar, firstBar) {
   var bid = (o.close - spread).toFixed(2), ask = (o.close + spread).toFixed(2);
   var baEl = p.el ? p.el.querySelector('.ph-bidask') : null;
   if (baEl) baEl.innerHTML = '<span><span class="ba-lbl">Bid</span> <span class="bid">'+bid+'</span></span><span><span class="ba-lbl">Ask</span> <span class="ask">'+ask+'</span></span>';
+}
+
+// ============================================================================
+// COMPARE SYMBOLS
+// ============================================================================
+function showCompareInput(idx) {
+  var p = panels[idx];
+  if (!p || !p.el) return;
+  var hdr = p.el.querySelector('.panel-header-bar');
+  if (!hdr) return;
+  var existing = hdr.querySelector('.compare-input-wrap');
+  if (existing) { existing.remove(); return; }
+  var wrap = document.createElement('span');
+  wrap.className = 'compare-input-wrap';
+  wrap.innerHTML = '<input type="text" class="compare-input" placeholder="Add symbol..." />';
+  var inp = wrap.querySelector('input');
+  inp.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') {
+      var sym = inp.value.toUpperCase().trim();
+      if (sym && sym !== p.symbol) addCompareSymbol(idx, sym);
+      wrap.remove();
+    }
+    if (e.key === 'Escape') wrap.remove();
+  });
+  inp.addEventListener('blur', function() { setTimeout(function(){ if (wrap.parentNode) wrap.remove(); }, 200); });
+  var addBtn = hdr.querySelector('.ph-compare-add');
+  if (addBtn) addBtn.after(wrap); else hdr.appendChild(wrap);
+  inp.focus();
+}
+function addCompareSymbol(idx, sym) {
+  var p = panels[idx];
+  if (!p || sym === p.symbol) return;
+  for (var i = 0; i < p.compareSymbols.length; i++) {
+    if (p.compareSymbols[i].symbol === sym) return;
+  }
+  var color = COMPARE_COLORS[p.compareColorIdx % COMPARE_COLORS.length];
+  p.compareColorIdx++;
+  p.compareSymbols.push({symbol:sym, bars:null, chartType:'line', color:color, series:null});
+  updatePanelHeader(idx);
+  loadCompareData(idx, p.compareSymbols.length - 1);
+  saveLayout();
+}
+function removeCompareSymbol(idx, ci) {
+  var p = panels[idx];
+  if (!p) return;
+  p.compareSymbols.splice(ci, 1);
+  if (p.compareSymbols.length === 0) p.compareMode = 'price';
+  updatePanelHeader(idx);
+  rerenderPanel(idx);
+  saveLayout();
+}
+function setCompareMode(idx, mode) {
+  var p = panels[idx];
+  if (!p) return;
+  p.compareMode = mode;
+  updatePanelHeader(idx);
+  rerenderPanel(idx);
+  saveLayout();
+}
+function loadCompareData(panelIdx, compareIdx) {
+  var p = panels[panelIdx];
+  var cs = p.compareSymbols[compareIdx];
+  if (!cs) return;
+  var start = document.getElementById('dt-start').value;
+  var end = document.getElementById('dt-end').value;
+  var tf = p.timeframe;
+  fetch('/api/bars?symbol=' + cs.symbol + '&start=' + start + '&end=' + end + '&timeframe=' + tf)
+    .then(function(r) { return r.ok ? r.json() : []; })
+    .then(function(bars) { cs.bars = bars; rerenderPanel(panelIdx); })
+    .catch(function(err) { console.error('Compare load error:', err); });
+}
+function loadAllCompareData(panelIdx) {
+  var p = panels[panelIdx];
+  if (!p || !p.compareSymbols.length) return;
+  var start = document.getElementById('dt-start').value;
+  var end = document.getElementById('dt-end').value;
+  var tf = p.timeframe;
+  var syms = [];
+  for (var i = 0; i < p.compareSymbols.length; i++) syms.push(p.compareSymbols[i].symbol);
+  fetch('/api/bars/batch?symbols=' + syms.join(',') + '&start=' + start + '&end=' + end + '&timeframe=' + tf)
+    .then(function(r) { return r.ok ? r.json() : {}; })
+    .then(function(data) {
+      var any = false;
+      for (var i = 0; i < p.compareSymbols.length; i++) {
+        if (data[p.compareSymbols[i].symbol]) { p.compareSymbols[i].bars = data[p.compareSymbols[i].symbol]; any = true; }
+      }
+      if (any) rerenderPanel(panelIdx);
+    })
+    .catch(function(err) { console.error('Compare batch load error:', err); });
+}
+function barsToPerformance(bars, startIdx) {
+  if (!bars || bars.length === 0) return [];
+  var si = startIdx || 0;
+  if (si >= bars.length) si = 0;
+  var first = bars[si].close;
+  if (first === 0) return [];
+  var result = [];
+  for (var i = 0; i < bars.length; i++) {
+    result.push({time: bars[i].time, value: Math.round(((bars[i].close - first) / first) * 10000) / 100});
+  }
+  return result;
+}
+function addSeriesByType(chart, chartType, opts) {
+  switch (chartType) {
+    case 'candlestick': return chart.addCandlestickSeries(opts);
+    case 'bar': return chart.addBarSeries(opts);
+    case 'area': return chart.addAreaSeries(opts);
+    case 'baseline': return chart.addBaselineSeries(opts);
+    case 'line': default: return chart.addLineSeries(opts);
+  }
+}
+function setCompareChartType(panelIdx, compareIdx, chartType) {
+  panels[panelIdx].compareSymbols[compareIdx].chartType = chartType;
+  rerenderPanel(panelIdx);
+  saveLayout();
+}
+// Compare context menu
+function showCompareCtx(e, panelIdx, compareIdx) {
+  closeCompareCtx();
+  var cs = panels[panelIdx].compareSymbols[compareIdx];
+  var types = ['line','candlestick','bar','area','baseline'];
+  var menu = document.createElement('div');
+  menu.className = 'ctx-menu';
+  menu.id = 'compare-ctx-menu';
+  menu.style.left = e.clientX + 'px';
+  menu.style.top = e.clientY + 'px';
+  for (var i = 0; i < types.length; i++) {
+    (function(t) {
+      var item = document.createElement('div');
+      item.className = 'ctx-menu-item';
+      item.textContent = (cs.chartType === t ? '\u2713 ' : '  ') + t.charAt(0).toUpperCase() + t.slice(1);
+      item.onclick = function() { closeCompareCtx(); setCompareChartType(panelIdx, compareIdx, t); };
+      menu.appendChild(item);
+    })(types[i]);
+  }
+  var sep = document.createElement('div'); sep.className = 'ctx-menu-sep'; menu.appendChild(sep);
+  var rem = document.createElement('div');
+  rem.className = 'ctx-menu-item danger';
+  rem.textContent = 'Remove';
+  rem.onclick = function() { closeCompareCtx(); removeCompareSymbol(panelIdx, compareIdx); };
+  menu.appendChild(rem);
+  document.body.appendChild(menu);
+  setTimeout(function() { document.addEventListener('click', closeCompareCtx, {once:true}); }, 0);
+}
+function showPrimaryChartTypeCtx(e, panelIdx) {
+  closeCompareCtx();
+  var p = panels[panelIdx];
+  var types = ['candlestick','bar','line','area','baseline'];
+  var menu = document.createElement('div');
+  menu.className = 'ctx-menu';
+  menu.id = 'compare-ctx-menu';
+  menu.style.left = e.clientX + 'px';
+  menu.style.top = e.clientY + 'px';
+  for (var i = 0; i < types.length; i++) {
+    (function(t) {
+      var item = document.createElement('div');
+      item.className = 'ctx-menu-item';
+      item.textContent = ((p.chartType||'candlestick') === t ? '\u2713 ' : '  ') + (CT_ABBR[t] || t);
+      item.onclick = function() { closeCompareCtx(); setPrimaryChartType(panelIdx, t); };
+      menu.appendChild(item);
+    })(types[i]);
+  }
+  document.body.appendChild(menu);
+  setTimeout(function() { document.addEventListener('click', closeCompareCtx, {once:true}); }, 0);
+}
+function setPrimaryChartType(panelIdx, chartType) {
+  panels[panelIdx].chartType = chartType;
+  updatePanelHeader(panelIdx);
+  rerenderPanel(panelIdx);
+  saveLayout();
+}
+function closeCompareCtx() {
+  var m = document.getElementById('compare-ctx-menu');
+  if (m) m.remove();
+}
+function updateCompareOHLCV(idx, param) {
+  var p = panels[idx];
+  if (!p || !p.el || !p.compareSymbols.length) return;
+  var el = document.getElementById('ph-cmp-'+idx);
+  if (!el) return;
+  var html = '';
+  var isPerf = p.compareMode === 'performance' && p.compareSymbols.length > 0;
+  for (var i = 0; i < p.compareSymbols.length; i++) {
+    var cs = p.compareSymbols[i];
+    if (!cs.series || !cs.bars || !cs.bars.length) continue;
+    var val = null;
+    if (param && param.seriesData) val = param.seriesData.get(cs.series);
+    if (!val) {
+      var lastBar = cs.bars[cs.bars.length - 1];
+      if (isPerf) { var perf = barsToPerformance(cs.bars); val = perf.length ? perf[perf.length-1] : null; }
+      else val = lastBar;
+    }
+    if (!val) continue;
+    var display = '';
+    if (isPerf && val.value !== undefined) {
+      display = (val.value >= 0 ? '+' : '') + val.value.toFixed(2) + '%';
+    } else if (val.close !== undefined) {
+      display = val.close.toFixed(2);
+    } else if (val.value !== undefined) {
+      display = val.value.toFixed(2);
+    }
+    html += '<span class="ph-compare-price" style="color:'+cs.color+'">'+cs.symbol+' '+display+'</span>';
+  }
+  el.innerHTML = html;
 }
 
 // ============================================================================
@@ -1199,6 +1428,8 @@ function symContextMenu(e, sym, gIdx) {
     items.push({label:'Move to ' + g.name, action:function(){moveSymToGroup(sym, gIdx, gi);}});
   });
   if (items.length > 0) items.push({sep:true});
+  items.push({label:'Compare in panel', action:function(){addCompareSymbol(activePanel, sym);}});
+  items.push({sep:true});
   items.push({label:'Delete from list', action:function(){deleteSymFromWL(sym, gIdx);}, danger:true});
   showContextMenu(e.clientX, e.clientY, items);
 }
@@ -1448,6 +1679,8 @@ function makePanel(idx) {
     maOverlays: [], oscillators: [], oscCharts: [], anchorVwaps: [],
     oscColorIdx: 0, maColorIdx: 0, avwapColorIdx: 0,
     ohlcv: {}, indicatorBarCollapsed: false,
+    compareSymbols: [], compareMode: 'price', compareColorIdx: 0,
+    chartType: 'candlestick',
     assetClass: 'stocks', session: 'extended',
   };
 }
@@ -1475,7 +1708,14 @@ function saveLayout() {
   // Update active layout entry and persist all layouts
   var panelData = [];
   for (var i = 0; i < panels.length; i++) {
-    panelData.push({ symbol: panels[i].symbol, timeframe: panels[i].timeframe, assetClass: panels[i].assetClass, session: panels[i].session });
+    var _cmpSave = [];
+    if (panels[i].compareSymbols && panels[i].compareSymbols.length) {
+      for (var j = 0; j < panels[i].compareSymbols.length; j++) {
+        var _cs = panels[i].compareSymbols[j];
+        _cmpSave.push({symbol:_cs.symbol, chartType:_cs.chartType, color:_cs.color});
+      }
+    }
+    panelData.push({ symbol: panels[i].symbol, timeframe: panels[i].timeframe, assetClass: panels[i].assetClass, session: panels[i].session, chartType: panels[i].chartType || 'candlestick', compareSymbols: _cmpSave, compareMode: panels[i].compareMode || 'price' });
   }
   // Find and update active layout
   for (var i = 0; i < allLayouts.length; i++) {
@@ -1550,6 +1790,17 @@ function switchLayout(id) {
       p.timeframe = ly.panels[i].timeframe || '5min';
       p.assetClass = ly.panels[i].assetClass || 'stocks';
       p.session = ly.panels[i].session || 'extended';
+      p.chartType = ly.panels[i].chartType || 'candlestick';
+      // Restore comparison state
+      if (ly.panels[i].compareSymbols && ly.panels[i].compareSymbols.length) {
+        p.compareSymbols = [];
+        for (var ci = 0; ci < ly.panels[i].compareSymbols.length; ci++) {
+          var sc = ly.panels[i].compareSymbols[ci];
+          p.compareSymbols.push({symbol:sc.symbol, bars:null, chartType:sc.chartType||'line', color:sc.color, series:null});
+        }
+        p.compareMode = ly.panels[i].compareMode || 'price';
+        p.compareColorIdx = p.compareSymbols.length;
+      }
     }
     panels.push(p);
   }
@@ -1832,8 +2083,17 @@ function loadPanelData(idx) {
         quoteCache[p.symbol] = {price:lastBar.close, change:chg, changePct:pdc ? +((chg/pdc)*100).toFixed(2) : 0};
         renderSymbolList();
       }
+      // Clear stale comparison bars before rendering (prevents flash of old-timeframe data)
+      if (p.compareSymbols && p.compareSymbols.length > 0) {
+        for (var ci = 0; ci < p.compareSymbols.length; ci++) {
+          p.compareSymbols[ci].bars = null;
+          p.compareSymbols[ci].series = null;
+        }
+      }
       renderPanelChart(idx);
       renderPanelOscPanels(idx);
+      // Load comparison symbol data if any
+      if (p.compareSymbols && p.compareSymbols.length > 0) loadAllCompareData(idx);
       if (currentLayout !== '1') {
         if (SYNC.time) setupTimeSync();
         if (SYNC.crosshair) setupMultiPanelCrosshairSync();
@@ -1887,76 +2147,185 @@ function renderPanelChart(idx) {
   p.filteredBars = bars; // keep reference for OHLCV lookups
   var w = container.clientWidth || 400, h = container.clientHeight || 300;
   if (typeof LightweightCharts === 'undefined') return;
+  var isPerf = p.compareMode === 'performance' && p.compareSymbols && p.compareSymbols.length > 0;
+  var hasCompare = p.compareSymbols && p.compareSymbols.length > 0;
   try {
     var chOpts = getChartOpts(w, h);
     p.chart = LightweightCharts.createChart(container, chOpts);
-    p.candleSeries = p.chart.addCandlestickSeries(getCandleOpts());
-    p.candleSeries.setData(bars);
-    // Volume
-    if (p.overlays.vol.enabled) {
+
+    // --- Primary symbol ---
+    if (isPerf) {
+      // Performance mode: line series for primary
+      var perfData = barsToPerformance(bars);
+      p.candleSeries = p.chart.addLineSeries({
+        color: displaySettings.candleUp, lineWidth: 2,
+        priceLineVisible: false, lastValueVisible: true,
+        title: p.symbol,
+        priceFormat: { type: 'percent', precision: 2, minMove: 0.01 }
+      });
+      p.candleSeries.setData(perfData);
+    } else {
+      // Price mode: use panel's selected chart type
+      var ct = p.chartType || 'candlestick';
+      if (ct === 'candlestick') {
+        p.candleSeries = p.chart.addCandlestickSeries(getCandleOpts());
+        p.candleSeries.setData(bars);
+      } else if (ct === 'bar') {
+        p.candleSeries = p.chart.addBarSeries({
+          upColor: displaySettings.candleUp, downColor: displaySettings.candleDown
+        });
+        p.candleSeries.setData(bars);
+      } else if (ct === 'line') {
+        p.candleSeries = p.chart.addLineSeries({
+          color: displaySettings.candleUp, lineWidth: 2
+        });
+        p.candleSeries.setData(bars.map(function(b){ return {time:b.time, value:b.close}; }));
+      } else if (ct === 'area') {
+        p.candleSeries = p.chart.addAreaSeries({
+          topColor: displaySettings.candleUp + '40', bottomColor: displaySettings.candleUp + '10',
+          lineColor: displaySettings.candleUp, lineWidth: 2
+        });
+        p.candleSeries.setData(bars.map(function(b){ return {time:b.time, value:b.close}; }));
+      } else if (ct === 'baseline') {
+        p.candleSeries = p.chart.addBaselineSeries({
+          baseValue: { type: 'price', price: bars[0].close },
+          topLineColor: displaySettings.candleUp, bottomLineColor: displaySettings.candleDown,
+          topFillColor1: displaySettings.candleUp + '40', topFillColor2: 'transparent',
+          bottomFillColor1: 'transparent', bottomFillColor2: displaySettings.candleDown + '40'
+        });
+        p.candleSeries.setData(bars.map(function(b){ return {time:b.time, value:b.close}; }));
+      } else {
+        p.candleSeries = p.chart.addCandlestickSeries(getCandleOpts());
+        p.candleSeries.setData(bars);
+      }
+    }
+
+    // --- Comparison symbols ---
+    if (hasCompare) {
+      for (var ci = 0; ci < p.compareSymbols.length; ci++) {
+        var cs = p.compareSymbols[ci];
+        cs.series = null; // reset reference
+        if (!cs.bars || !cs.bars.length) continue;
+        var csBars = filterBarsBySession(cs.bars, p.session);
+        if (!csBars || !csBars.length) continue;
+
+        if (isPerf) {
+          // Performance mode: line series, shared scale
+          var csPerfData = barsToPerformance(csBars);
+          cs.series = p.chart.addLineSeries({
+            color: cs.color, lineWidth: 2,
+            priceLineVisible: false, lastValueVisible: true,
+            title: cs.symbol,
+            priceFormat: { type: 'percent', precision: 2, minMove: 0.01 }
+          });
+          cs.series.setData(csPerfData);
+        } else {
+          // Price mode: own price scale per comparison symbol
+          var scaleId = 'cmp-' + cs.symbol;
+          if (cs.chartType === 'candlestick') {
+            cs.series = p.chart.addCandlestickSeries({
+              upColor: cs.color, downColor: cs.color + '80',
+              borderUpColor: cs.color, borderDownColor: cs.color + '80',
+              wickUpColor: cs.color, wickDownColor: cs.color + '80',
+              priceScaleId: scaleId, priceLineVisible: false, lastValueVisible: true, title: cs.symbol,
+            });
+            cs.series.setData(csBars);
+          } else if (cs.chartType === 'bar') {
+            cs.series = p.chart.addBarSeries({
+              upColor: cs.color, downColor: cs.color + '80',
+              priceScaleId: scaleId, priceLineVisible: false, lastValueVisible: true, title: cs.symbol,
+            });
+            cs.series.setData(csBars);
+          } else if (cs.chartType === 'area') {
+            cs.series = p.chart.addAreaSeries({
+              topColor: cs.color + '40', bottomColor: cs.color + '10',
+              lineColor: cs.color, lineWidth: 2,
+              priceScaleId: scaleId, priceLineVisible: false, lastValueVisible: true, title: cs.symbol,
+            });
+            cs.series.setData(csBars);
+          } else {
+            // Default: line
+            cs.series = p.chart.addLineSeries({
+              color: cs.color, lineWidth: 2,
+              priceScaleId: scaleId, priceLineVisible: false, lastValueVisible: true, title: cs.symbol,
+            });
+            cs.series.setData(csBars);
+          }
+          p.chart.priceScale(scaleId).applyOptions({ scaleMargins:{top:0.1, bottom:0.1}, visible:false });
+        }
+      }
+    }
+
+    // --- Volume (price mode only) ---
+    if (!isPerf && p.overlays.vol.enabled) {
       var volS = p.chart.addHistogramSeries({priceFormat:{type:'volume'}, priceScaleId:'vol'});
       p.chart.priceScale('vol').applyOptions({scaleMargins:{top:0.85, bottom:0}});
       volS.setData(bars.map(function(b) { return {time:b.time, value:b.volume, color:b.close>=b.open?'rgba(63,185,80,0.3)':'rgba(248,81,73,0.3)'}; }));
     }
-    // Extended hours shade (pre-market + after-hours get a subtle tint)
-    var extShade = [];
-    for (var i = 0; i < bars.length; i++) {
-      var _bd = new Date(bars[i].time * 1000);
-      var _m = _bd.getUTCHours() * 60 + _bd.getUTCMinutes();
-      if (_m >= 240 && _m < 570) extShade.push({time:bars[i].time, value:1, color:'rgba(88,166,255,0.06)'}); // Pre-market
-      else if (_m >= 960 && _m < 1200) extShade.push({time:bars[i].time, value:1, color:'rgba(136,106,255,0.06)'}); // After-hours
-    }
-    if (extShade.length > 0) {
-      var pmS = p.chart.addHistogramSeries({priceScaleId:'pm-bg', priceLineVisible:false, lastValueVisible:false});
-      p.chart.priceScale('pm-bg').applyOptions({scaleMargins:{top:0, bottom:0}, visible:false});
-      pmS.setData(extShade);
-    }
-    // VWAP
-    if (p.overlays.vwap.enabled) {
-      var ov = p.overlays.vwap, vd = [], ctv = 0, cv = 0, lastDay = -1;
+    // Extended hours shade (price mode only)
+    if (!isPerf) {
+      var extShade = [];
       for (var i = 0; i < bars.length; i++) {
-        var bd = new Date(bars[i].time * 1000);
-        var curDay = bd.getUTCFullYear() * 10000 + bd.getUTCMonth() * 100 + bd.getUTCDate();
-        if (curDay !== lastDay) { ctv = 0; cv = 0; lastDay = curDay; }
-        var tp = (bars[i].high + bars[i].low + bars[i].close) / 3;
-        ctv += tp * bars[i].volume; cv += bars[i].volume;
-        if (cv > 0) vd.push({time:bars[i].time, value:Math.round(ctv/cv*10000)/10000});
+        var _bd = new Date(bars[i].time * 1000);
+        var _m = _bd.getUTCHours() * 60 + _bd.getUTCMinutes();
+        if (_m >= 240 && _m < 570) extShade.push({time:bars[i].time, value:1, color:'rgba(88,166,255,0.06)'}); // Pre-market
+        else if (_m >= 960 && _m < 1200) extShade.push({time:bars[i].time, value:1, color:'rgba(136,106,255,0.06)'}); // After-hours
       }
-      if (vd.length > 0) { var vs = p.chart.addLineSeries({color:ov.color, lineWidth:ov.lineWidth, lineStyle:ov.lineStyle, crosshairMarkerVisible:false, priceLineVisible:false, lastValueVisible:false}); vs.setData(vd); }
+      if (extShade.length > 0) {
+        var pmS = p.chart.addHistogramSeries({priceScaleId:'pm-bg', priceLineVisible:false, lastValueVisible:false});
+        p.chart.priceScale('pm-bg').applyOptions({scaleMargins:{top:0, bottom:0}, visible:false});
+        pmS.setData(extShade);
+      }
     }
-    // Anchor VWAPs
-    if (p.anchorVwaps.length > 0) {
-      p.anchorVwaps.forEach(function(av) {
-        if (!av.anchorTime) return;
-        var avd = [], ctv = 0, cv = 0;
+    // --- Overlays (price mode only) ---
+    if (!isPerf) {
+      // VWAP
+      if (p.overlays.vwap.enabled) {
+        var ov = p.overlays.vwap, vd = [], ctv = 0, cv = 0, lastDay = -1;
         for (var i = 0; i < bars.length; i++) {
-          if (bars[i].time < av.anchorTime) continue;
+          var bd = new Date(bars[i].time * 1000);
+          var curDay = bd.getUTCFullYear() * 10000 + bd.getUTCMonth() * 100 + bd.getUTCDate();
+          if (curDay !== lastDay) { ctv = 0; cv = 0; lastDay = curDay; }
           var tp = (bars[i].high + bars[i].low + bars[i].close) / 3;
           ctv += tp * bars[i].volume; cv += bars[i].volume;
-          if (cv > 0) avd.push({time:bars[i].time, value:Math.round(ctv/cv*10000)/10000});
+          if (cv > 0) vd.push({time:bars[i].time, value:Math.round(ctv/cv*10000)/10000});
         }
-        if (avd.length > 0) { p.chart.addLineSeries({color:av.color, lineWidth:av.lineWidth, lineStyle:av.lineStyle, crosshairMarkerVisible:false, priceLineVisible:false, lastValueVisible:false}).setData(avd); }
-      });
-    }
-    // MA overlays
-    if (p.maOverlays.length > 0) {
-      p.maOverlays.forEach(function(ma) {
-        var src = getSource(bars, ma.source || 'close');
-        var vals = calcMA(src, ma.maType, ma.period);
-        var data = [];
-        for (var i = 0; i < bars.length; i++) { if (vals[i] !== null && vals[i] !== undefined && !isNaN(vals[i])) data.push({time:bars[i].time, value:Math.round(vals[i]*10000)/10000}); }
-        if (data.length > 0) { var s = p.chart.addLineSeries({color:ma.color, lineWidth:ma.lineWidth, lineStyle:ma.lineStyle, crosshairMarkerVisible:false, priceLineVisible:false, lastValueVisible:false}); s.setData(data); }
-      });
-    }
-    // Lorentzian Classification
-    if (p.overlays.lc.enabled) {
-      var lcResult = calcLorentzian(bars, p.overlays.lc);
-      if (lcResult.kernelLine.length > 0) {
-        var ov = p.overlays.lc;
-        var ks = p.chart.addLineSeries({color:ov.color, lineWidth:ov.lineWidth, lineStyle:ov.lineStyle, crosshairMarkerVisible:false, priceLineVisible:false, lastValueVisible:false});
-        ks.setData(lcResult.kernelLine);
+        if (vd.length > 0) { var vs = p.chart.addLineSeries({color:ov.color, lineWidth:ov.lineWidth, lineStyle:ov.lineStyle, crosshairMarkerVisible:false, priceLineVisible:false, lastValueVisible:false}); vs.setData(vd); }
       }
-      if (lcResult.signals.length > 0) { p.candleSeries.setMarkers(lcResult.signals); }
+      // Anchor VWAPs
+      if (p.anchorVwaps.length > 0) {
+        p.anchorVwaps.forEach(function(av) {
+          if (!av.anchorTime) return;
+          var avd = [], ctv = 0, cv = 0;
+          for (var i = 0; i < bars.length; i++) {
+            if (bars[i].time < av.anchorTime) continue;
+            var tp = (bars[i].high + bars[i].low + bars[i].close) / 3;
+            ctv += tp * bars[i].volume; cv += bars[i].volume;
+            if (cv > 0) avd.push({time:bars[i].time, value:Math.round(ctv/cv*10000)/10000});
+          }
+          if (avd.length > 0) { p.chart.addLineSeries({color:av.color, lineWidth:av.lineWidth, lineStyle:av.lineStyle, crosshairMarkerVisible:false, priceLineVisible:false, lastValueVisible:false}).setData(avd); }
+        });
+      }
+      // MA overlays
+      if (p.maOverlays.length > 0) {
+        p.maOverlays.forEach(function(ma) {
+          var src = getSource(bars, ma.source || 'close');
+          var vals = calcMA(src, ma.maType, ma.period);
+          var data = [];
+          for (var i = 0; i < bars.length; i++) { if (vals[i] !== null && vals[i] !== undefined && !isNaN(vals[i])) data.push({time:bars[i].time, value:Math.round(vals[i]*10000)/10000}); }
+          if (data.length > 0) { var s = p.chart.addLineSeries({color:ma.color, lineWidth:ma.lineWidth, lineStyle:ma.lineStyle, crosshairMarkerVisible:false, priceLineVisible:false, lastValueVisible:false}); s.setData(data); }
+        });
+      }
+      // Lorentzian Classification
+      if (p.overlays.lc.enabled) {
+        var lcResult = calcLorentzian(bars, p.overlays.lc);
+        if (lcResult.kernelLine.length > 0) {
+          var ov = p.overlays.lc;
+          var ks = p.chart.addLineSeries({color:ov.color, lineWidth:ov.lineWidth, lineStyle:ov.lineStyle, crosshairMarkerVisible:false, priceLineVisible:false, lastValueVisible:false});
+          ks.setData(lcResult.kernelLine);
+        }
+        if (lcResult.signals.length > 0) { p.candleSeries.setMarkers(lcResult.signals); }
+      }
     }
     p.chart.timeScale().fitContent();
     // Crosshair subscription for OHLCV
@@ -1965,6 +2334,7 @@ function renderPanelChart(idx) {
         var pp = panels[pidx];
         if(!param.time || !param.seriesData || !param.seriesData.size){
           if(pp.bars && pp.bars.length) updatePanelOHLCV(pidx, pp.bars[pp.bars.length-1], pp.bars[0]);
+          updateCompareOHLCV(pidx, null);
           return;
         }
         var candle = param.seriesData.get(pp.candleSeries);
@@ -1973,8 +2343,10 @@ function renderPanelChart(idx) {
           var _b=pp.filteredBars||pp.bars;if(_b)for(var j=_b.length-1;j>=0;j--){if(_b[j].time===candle.time){candle=_b[j];break;}}
           updatePanelOHLCV(pidx, candle, pp.bars[0]);
         }
+        updateCompareOHLCV(pidx, param);
       });
       var _fb=p.filteredBars||p.bars; if(_fb&&_fb.length) updatePanelOHLCV(pidx, _fb[_fb.length-1], _fb[0]);
+      updateCompareOHLCV(pidx, null);
       // Anchor VWAP pick handler
       p.chart.subscribeClick(function(param) {
         if (!avwapPicking || avwapPicking.panelIdx !== pidx) return;
@@ -1989,6 +2361,43 @@ function renderPanelChart(idx) {
         }
       });
     })(idx);
+    // Dynamic performance baseline: recompute 0% on scroll/pan
+    if (isPerf) {
+      (function(pidx) {
+        var perfThrottle = null;
+        panels[pidx].chart.timeScale().subscribeVisibleLogicalRangeChange(function(logicalRange) {
+          if (syncing || !logicalRange) return;
+          if (perfThrottle) clearTimeout(perfThrottle);
+          perfThrottle = setTimeout(function() {
+            var pp = panels[pidx];
+            if (!pp || !pp.chart || pp.compareMode !== 'performance') return;
+            var fBars = pp.filteredBars;
+            if (!fBars || !fBars.length) return;
+            var startIdx = Math.max(0, Math.ceil(logicalRange.from));
+            if (startIdx >= fBars.length) startIdx = 0;
+            // Recompute primary performance data
+            var newPerf = barsToPerformance(fBars, startIdx);
+            if (newPerf.length && pp.candleSeries) pp.candleSeries.setData(newPerf);
+            // Recompute each comparison (align by timestamp)
+            if (pp.compareSymbols) {
+              var refTime = fBars[startIdx].time;
+              for (var ci = 0; ci < pp.compareSymbols.length; ci++) {
+                var cs = pp.compareSymbols[ci];
+                if (!cs.series || !cs.bars || !cs.bars.length) continue;
+                var csBars = filterBarsBySession(cs.bars, pp.session);
+                if (!csBars.length) continue;
+                var csStart = 0;
+                for (var j = 0; j < csBars.length; j++) {
+                  if (csBars[j].time >= refTime) { csStart = j; break; }
+                }
+                var csPerfData = barsToPerformance(csBars, csStart);
+                if (csPerfData.length) cs.series.setData(csPerfData);
+              }
+            }
+          }, 50);
+        });
+      })(idx);
+    }
     var _p = p;
     p.resizeObs = new ResizeObserver(function() { if (_p.chart) _p.chart.applyOptions({width:container.clientWidth, height:container.clientHeight}); });
     p.resizeObs.observe(container);
@@ -2009,8 +2418,8 @@ function renderPanelChart(idx) {
       indPanel.setAttribute('data-panel', pidx);
       container.appendChild(indPanel);
     })(idx);
-    // Drawing tools
-    if(typeof DrawingManager!=='undefined'){
+    // Drawing tools (price mode only — drawings use price coordinates)
+    if(!isPerf && typeof DrawingManager!=='undefined'){
       (function(pidx){
         var pp=panels[pidx];
         if(pp.drawingManager){
