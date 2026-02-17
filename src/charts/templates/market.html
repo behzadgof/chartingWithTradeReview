@@ -959,7 +959,25 @@ function loadCompareData(panelIdx, compareIdx) {
   var tf = p.timeframe;
   fetch('/api/bars?symbol=' + cs.symbol + '&start=' + start + '&end=' + end + '&timeframe=' + tf)
     .then(function(r) { return r.ok ? r.json() : []; })
-    .then(function(bars) { cs.bars = bars; rerenderPanel(panelIdx); })
+    .then(function(bars) {
+      cs.bars = bars;
+      if (!bars || !bars.length) {
+        console.warn('No data for comparison symbol:', cs.symbol);
+        // Remove the symbol and notify user
+        var p2 = panels[panelIdx];
+        if (p2) {
+          for (var ri = 0; ri < p2.compareSymbols.length; ri++) {
+            if (p2.compareSymbols[ri] === cs) { p2.compareSymbols.splice(ri, 1); break; }
+          }
+          if (p2.compareSymbols.length === 0) p2.compareMode = 'price';
+          updatePanelHeader(panelIdx);
+          saveLayout();
+        }
+        alert('No data available for ' + cs.symbol);
+        return;
+      }
+      rerenderPanel(panelIdx);
+    })
     .catch(function(err) { console.error('Compare load error:', err); });
 }
 function loadAllCompareData(panelIdx) {
@@ -2365,8 +2383,10 @@ function renderPanelChart(idx) {
     if (isPerf) {
       (function(pidx) {
         var perfThrottle = null;
+        var updatingPerf = false;
+        var lastStartIdx = -1;
         panels[pidx].chart.timeScale().subscribeVisibleLogicalRangeChange(function(logicalRange) {
-          if (syncing || !logicalRange) return;
+          if (syncing || updatingPerf || !logicalRange) return;
           if (perfThrottle) clearTimeout(perfThrottle);
           perfThrottle = setTimeout(function() {
             var pp = panels[pidx];
@@ -2375,26 +2395,32 @@ function renderPanelChart(idx) {
             if (!fBars || !fBars.length) return;
             var startIdx = Math.max(0, Math.ceil(logicalRange.from));
             if (startIdx >= fBars.length) startIdx = 0;
-            // Recompute primary performance data
-            var newPerf = barsToPerformance(fBars, startIdx);
-            if (newPerf.length && pp.candleSeries) pp.candleSeries.setData(newPerf);
-            // Recompute each comparison (align by timestamp)
-            if (pp.compareSymbols) {
-              var refTime = fBars[startIdx].time;
-              for (var ci = 0; ci < pp.compareSymbols.length; ci++) {
-                var cs = pp.compareSymbols[ci];
-                if (!cs.series || !cs.bars || !cs.bars.length) continue;
-                var csBars = filterBarsBySession(cs.bars, pp.session);
-                if (!csBars.length) continue;
-                var csStart = 0;
-                for (var j = 0; j < csBars.length; j++) {
-                  if (csBars[j].time >= refTime) { csStart = j; break; }
+            if (startIdx === lastStartIdx) return; // no change
+            lastStartIdx = startIdx;
+            updatingPerf = true;
+            try {
+              // Recompute primary performance data
+              var newPerf = barsToPerformance(fBars, startIdx);
+              if (newPerf.length && pp.candleSeries) pp.candleSeries.setData(newPerf);
+              // Recompute each comparison (align by timestamp)
+              if (pp.compareSymbols) {
+                var refTime = fBars[startIdx].time;
+                for (var ci = 0; ci < pp.compareSymbols.length; ci++) {
+                  var cs = pp.compareSymbols[ci];
+                  if (!cs.series || !cs.bars || !cs.bars.length) continue;
+                  var csBars = filterBarsBySession(cs.bars, pp.session);
+                  if (!csBars.length) continue;
+                  var csStart = 0;
+                  for (var j = 0; j < csBars.length; j++) {
+                    if (csBars[j].time >= refTime) { csStart = j; break; }
+                  }
+                  var csPerfData = barsToPerformance(csBars, csStart);
+                  if (csPerfData.length) cs.series.setData(csPerfData);
                 }
-                var csPerfData = barsToPerformance(csBars, csStart);
-                if (csPerfData.length) cs.series.setData(csPerfData);
               }
-            }
-          }, 50);
+            } catch(e) { console.warn('Perf baseline update:', e); }
+            updatingPerf = false;
+          }, 80);
         });
       })(idx);
     }

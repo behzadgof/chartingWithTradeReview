@@ -26,12 +26,21 @@ def _cmd_serve(args: argparse.Namespace) -> None:
 
     market_data = None
     if not args.trades or args.cache_dir:
+        # Load .env if python-dotenv is available
+        try:
+            from dotenv import load_dotenv
+            load_dotenv()
+        except ImportError:
+            pass
         # Try to create a MarketDataManager if marketdata package available
         try:
             from marketdata import create_manager_from_env
             market_data = create_manager_from_env()
-        except (ImportError, Exception):
+            print(f"MarketData manager initialized ({[p.__class__.__name__ for p in market_data.providers]})")
+        except ImportError:
             pass
+        except Exception as e:
+            print(f"Warning: Could not initialize market data: {e}")
 
     server = ChartServer(
         market_data=market_data,
