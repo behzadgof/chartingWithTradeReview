@@ -260,6 +260,7 @@ function saveToStorage(key, data) {
       body: JSON.stringify({key: key, value: data})
     }).catch(function(){});
   } catch(e) {}
+  if (typeof _fbAutoSync === 'function') _fbAutoSync();
 }
 
 function loadFromStorage(key) {

@@ -330,6 +330,12 @@ class ChartRequestHandler(http.server.BaseHTTPRequestHandler):
             self._save_state()
         elif path == "/api/state/delete":
             self._delete_state()
+        elif path == "/api/firebase/push":
+            self._firebase_push()
+        elif path == "/api/firebase/pull":
+            self._firebase_pull()
+        elif path == "/api/firebase/test":
+            self._firebase_test()
         else:
             self.send_error(404)
 
@@ -392,6 +398,73 @@ class ChartRequestHandler(http.server.BaseHTTPRequestHandler):
             return
         ok = delete_state(self._state_dir(), key)
         self._send_json({"ok": ok})
+
+    # -- Firebase cloud sync ---------------------------------------------------
+
+    def _get_firebase_config(self) -> dict | None:
+        from charts.server.state import load_state
+
+        cfg = load_state(self._state_dir(), "orb_firebase")
+        if not cfg or not cfg.get("projectId") or not cfg.get("databaseSecret"):
+            return None
+        return cfg
+
+    def _firebase_push(self) -> None:
+        from charts.server.state import load_all_state
+        from charts.server.firebase import firebase_write
+
+        cfg = self._get_firebase_config()
+        if not cfg:
+            self._send_json({"ok": False, "error": "Firebase not configured"}, 400)
+            return
+        all_state = load_all_state(self._state_dir())
+        # Don't push firebase credentials to the cloud
+        all_state.pop("orb_firebase", None)
+        import datetime
+
+        all_state["_lastModified"] = datetime.datetime.now(
+            datetime.timezone.utc
+        ).isoformat()
+        ok = firebase_write(cfg["projectId"], "state", cfg["databaseSecret"], all_state)
+        self._send_json({"ok": ok})
+
+    def _firebase_pull(self) -> None:
+        from charts.server.state import save_state
+        from charts.server.firebase import firebase_read
+
+        cfg = self._get_firebase_config()
+        if not cfg:
+            self._send_json({"ok": False, "error": "Firebase not configured"}, 400)
+            return
+        data = firebase_read(cfg["projectId"], "state", cfg["databaseSecret"])
+        if data is None:
+            self._send_json({"ok": False, "error": "Failed to read from Firebase"})
+            return
+        # Save each key locally (skip metadata keys)
+        for key, value in data.items():
+            if key.startswith("_"):
+                continue
+            save_state(self._state_dir(), key, value)
+        self._send_json({"ok": True, "state": data})
+
+    def _firebase_test(self) -> None:
+        from charts.server.firebase import firebase_read
+
+        try:
+            body = json.loads(self._read_body())
+            project_id = body.get("projectId", "")
+            secret = body.get("databaseSecret", "")
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            self._send_json({"error": "Invalid JSON"}, 400)
+            return
+        if not project_id or not secret:
+            self._send_json({"ok": False, "error": "Missing projectId or databaseSecret"})
+            return
+        result = firebase_read(project_id, "", secret)
+        if result is None:
+            self._send_json({"ok": False, "error": "Connection failed — check project ID and secret"})
+        else:
+            self._send_json({"ok": True})
 
     def log_message(self, format: str, *args: object) -> None:
         """Suppress per-request logging."""

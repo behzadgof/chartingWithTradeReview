@@ -263,6 +263,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
     </div>
     <button class="sync-gear-btn" onclick="openSyncSettings(event)" title="Panel Sync Settings">&#9881;</button>
     <button class="display-settings-btn" onclick="openDisplaySettings(event)" title="Display Settings"><svg width="14" height="14" viewBox="0 0 16 16"><path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z" fill="currentColor"/><path d="M2 2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V2zm2-1a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H4z" fill="currentColor"/></svg> Display</button>
+    <button class="cloud-sync-btn" onclick="openCloudSyncSettings(event)" title="Cloud Sync"><svg width="14" height="14" viewBox="0 0 16 16"><path fill="currentColor" d="M4.406 3.342A5.53 5.53 0 018.027 2c2.137 0 3.987 1.264 4.84 3.088A4.001 4.001 0 0112 13H4.5a3.5 3.5 0 01-.594-6.953 5.56 5.56 0 01.5-2.705zM8.027 3a4.53 4.53 0 00-3.07 1.19 4.56 4.56 0 00-1.28 2.244l-.112.459-.468.06A2.5 2.5 0 004.5 12H12a3 3 0 00.405-5.973l-.473-.066-.084-.473A4.53 4.53 0 008.027 3z"/></svg> Sync</button>
     <button class="chart-settings-btn" onclick="openChartSettings(event)" title="Chart Settings"><svg width="14" height="14" viewBox="0 0 16 16"><path fill="currentColor" d="M7.068.727c.243-.97 1.62-.97 1.864 0l.071.286a.96.96 0 001.622.434l.205-.211c.695-.719 1.888-.03 1.613.929l-.079.275a.96.96 0 001.17 1.17l.275-.079c.96-.275 1.648.918.929 1.613l-.211.205a.96.96 0 00.434 1.622l.286.071c.97.243.97 1.62 0 1.864l-.286.071a.96.96 0 00-.434 1.622l.211.205c.719.695.03 1.888-.929 1.613l-.275-.079a.96.96 0 00-1.17 1.17l.079.275c.275.96-.918 1.648-1.613.929l-.205-.211a.96.96 0 00-1.622.434l-.071.286c-.243.97-1.62.97-1.864 0l-.071-.286a.96.96 0 00-1.622-.434l-.205.211c-.695.719-1.888.03-1.613-.929l.079-.275a.96.96 0 00-1.17-1.17l-.275.079c-.96.275-1.648-.918-.929-1.613l.211-.205a.96.96 0 00-.434-1.622l-.286-.071c-.97-.243-.97-1.62 0-1.864l.286-.071a.96.96 0 00.434-1.622l-.211-.205c-.719-.695-.03-1.888.929-1.613l.275.079a.96.96 0 001.17-1.17l-.079-.275c-.275-.96.918-1.648 1.613-.929l.205.211a.96.96 0 001.622-.434l.071-.286zM8 11a3 3 0 100-6 3 3 0 000 6z"/></svg> Session</button>
     <div class="sep"></div>
     <span id="tf-wrap" class="tf-wrap">
@@ -321,6 +322,13 @@ var COMPARE_COLORS = ['#61afef','#e5c07b','#c678dd','#56b6c2','#e06c75','#98c379
 var CT_ABBR = {candlestick:'Candle', bar:'Bar', line:'Line', area:'Area', baseline:'Baseline'};
 var activePeriod = '5D';
 var SYNC = { symbol: true, interval: false, crosshair: true, time: false, dateRange: false };
+function saveGlobalSettings() {
+  saveToStorage('orb_settings', {
+    sync: SYNC,
+    activePeriod: activePeriod,
+    dateRange: { start: document.getElementById('dt-start').value, end: document.getElementById('dt-end').value }
+  });
+}
 
 // Display settings (colors + font size)
 var DEFAULT_DISPLAY = {
@@ -566,6 +574,7 @@ function toggleSync(key, val) {
     if (range) syncAllTimeScales(range, activePanel);
   }
   if (key === 'crosshair' && val) setupMultiPanelCrosshairSync();
+  saveGlobalSettings();
 }
 function closeSettings(){document.getElementById('settings-popup').style.display='none';popupTarget=null;}
 document.addEventListener('mousedown', function(e) {
@@ -595,9 +604,9 @@ function _getTarget(){
 }
 function _rePopup(){if(popupTarget && popupTarget.type !== 'lc' && popupTarget.type !== 'sync' && popupTarget.type !== 'ma'){var t=_getTarget();if(t)renderPopup(document.querySelector('#settings-popup .sp-title').textContent,t,{target:document.querySelector('#settings-popup'),stopPropagation:function(){}});}}
 function popSetColor(v){var t=_getTarget();if(!t)return;t.color=v;if(popupTarget)refreshPanelIndicatorBar(popupTarget.panelIdx);rerenderPanel(popupTarget.panelIdx);_rePopup();}
-function popSetColor2(v){if(popupTarget&&popupTarget.type==='osc'){panels[popupTarget.panelIdx].oscillators[popupTarget.idx].color2=v;rerenderPanel(popupTarget.panelIdx);}}
-function popSetStyle(v){var t=_getTarget();if(!t)return;t.lineStyle=v;rerenderPanel(popupTarget.panelIdx);_rePopup();}
-function popSetWidth(v){var t=_getTarget();if(!t)return;t.lineWidth=v;rerenderPanel(popupTarget.panelIdx);_rePopup();}
+function popSetColor2(v){if(popupTarget&&popupTarget.type==='osc'){panels[popupTarget.panelIdx].oscillators[popupTarget.idx].color2=v;rerenderPanel(popupTarget.panelIdx);saveLayout();}}
+function popSetStyle(v){var t=_getTarget();if(!t)return;t.lineStyle=v;rerenderPanel(popupTarget.panelIdx);saveLayout();_rePopup();}
+function popSetWidth(v){var t=_getTarget();if(!t)return;t.lineWidth=v;rerenderPanel(popupTarget.panelIdx);saveLayout();_rePopup();}
 function popSetPeriod(v){if(popupTarget&&popupTarget.type==='osc'){panels[popupTarget.panelIdx].oscillators[popupTarget.idx].period=parseInt(v)||14;refreshPanelIndicatorBar(popupTarget.panelIdx);rerenderPanel(popupTarget.panelIdx);}}
 function popSetPeriod2(v){if(popupTarget&&popupTarget.type==='osc'){panels[popupTarget.panelIdx].oscillators[popupTarget.idx].period2=parseInt(v)||21;refreshPanelIndicatorBar(popupTarget.panelIdx);rerenderPanel(popupTarget.panelIdx);}}
 
@@ -721,6 +730,7 @@ function removePanelMA(idx, maIdx) {
 function togglePanelOverlay(idx, key, checked) {
   panels[idx].overlays[key].enabled = checked;
   rerenderPanel(idx);
+  saveLayout();
 }
 function getIndicatorCount(idx) {
   var p = panels[idx]; if (!p) return 0;
@@ -741,12 +751,15 @@ function toggleIndicatorPanel(idx) {
   // Close all other panels first
   document.querySelectorAll('.ind-panel.open').forEach(function(p) { p.classList.remove('open'); });
   document.querySelectorAll('.ind-btn.active').forEach(function(b) { b.classList.remove('active'); });
+  for (var pi = 0; pi < panels.length; pi++) panels[pi].indicatorBarCollapsed = false;
   if (!isOpen) {
     panel.classList.add('open');
     panel.innerHTML = buildIndicatorPanelHTML(idx);
     var btn = panels[idx].el ? panels[idx].el.querySelector('.ind-btn') : null;
     if (btn) btn.classList.add('active');
+    panels[idx].indicatorBarCollapsed = true;
   }
+  saveLayout();
 }
 function closeIndicatorPanel(idx) {
   var panel = document.getElementById('ind-panel-' + idx);
@@ -801,6 +814,7 @@ function refreshPanelIndicatorBar(idx) {
   // Update the badge count on the button
   var btn = p.el.querySelector('.ind-btn');
   if (btn) btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 16 16"><path d="M1 13h14v1H1zm1-6h2v5H2zm4-4h2v9H6zm4 2h2v7h-2zm4-3h2v10h-2z" fill="currentColor"/></svg> Indicators' + getIndicatorCountBadge(idx);
+  saveLayout();
 }
 function buildPanelHeaderHTML(idx) {
   var p = panels[idx];
@@ -1669,6 +1683,7 @@ function setPeriod(p) {
   if (panels[activePanel]) panels[activePanel].timeframe = tf;
   document.getElementById('tf-select').value = tf;
   updatePanelHeader(activePanel);
+  saveGlobalSettings();
   loadAllPanels();
 }
 function fmtDate(d) { return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); }
@@ -1722,6 +1737,64 @@ function setLayout(layout) {
   saveLayout();
   renderNamedLayoutTabs();
 }
+function _restorePanelState(p, saved) {
+  if (!saved) return;
+  p.symbol = saved.symbol || null;
+  p.timeframe = saved.timeframe || '5min';
+  p.assetClass = saved.assetClass || 'stocks';
+  p.session = saved.session || 'extended';
+  p.chartType = saved.chartType || 'candlestick';
+  // Comparison state
+  if (saved.compareSymbols && saved.compareSymbols.length) {
+    p.compareSymbols = [];
+    for (var ci = 0; ci < saved.compareSymbols.length; ci++) {
+      var sc = saved.compareSymbols[ci];
+      p.compareSymbols.push({symbol:sc.symbol, bars:null, chartType:sc.chartType||'line', color:sc.color, series:null});
+    }
+    p.compareMode = saved.compareMode || 'price';
+    p.compareColorIdx = p.compareSymbols.length;
+  }
+  // MA overlays
+  if (saved.maOverlays && saved.maOverlays.length) {
+    p.maOverlays = saved.maOverlays.map(function(ma) {
+      return {maType:ma.maType||'EMA', period:ma.period||20, source:ma.source||'close', color:ma.color||MA_COLORS[0], lineStyle:ma.lineStyle||0, lineWidth:ma.lineWidth||1};
+    });
+    p.maColorIdx = saved.maColorIdx || p.maOverlays.length;
+  }
+  // Oscillators
+  if (saved.oscillators && saved.oscillators.length) {
+    p.oscillators = saved.oscillators.map(function(osc) {
+      var o = {type:osc.type, period:osc.period||14, source:osc.source||'close', color:osc.color||OSC_COLORS[0], lineStyle:osc.lineStyle||0, lineWidth:osc.lineWidth||2};
+      if (osc.period2 !== undefined) o.period2 = osc.period2;
+      if (osc.color2) o.color2 = osc.color2;
+      return o;
+    });
+    p.oscColorIdx = saved.oscColorIdx || p.oscillators.length;
+  }
+  // VWAP + Lorentzian overlays
+  if (saved.overlays) {
+    if (saved.overlays.vwap) {
+      var sv = saved.overlays.vwap;
+      p.overlays.vwap = {enabled:sv.enabled!==false, color:sv.color||'#ff9800', lineStyle:sv.lineStyle||0, lineWidth:sv.lineWidth||2};
+    }
+    if (saved.overlays.lc) {
+      for (var k in saved.overlays.lc) {
+        if (saved.overlays.lc.hasOwnProperty(k)) p.overlays.lc[k] = saved.overlays.lc[k];
+      }
+    }
+  }
+  // Anchor VWAPs
+  if (saved.anchorVwaps && saved.anchorVwaps.length) {
+    p.anchorVwaps = saved.anchorVwaps.map(function(av) {
+      return {anchorTime:av.anchorTime, color:av.color||AVWAP_COLORS[0], lineStyle:av.lineStyle||0, lineWidth:av.lineWidth||2};
+    });
+    p.avwapColorIdx = saved.avwapColorIdx || p.anchorVwaps.length;
+  }
+  // Indicator bar collapse state
+  if (saved.indicatorBarCollapsed !== undefined) {
+    p.indicatorBarCollapsed = saved.indicatorBarCollapsed;
+  }
+}
 function saveLayout() {
   // Update active layout entry and persist all layouts
   var panelData = [];
@@ -1733,7 +1806,30 @@ function saveLayout() {
         _cmpSave.push({symbol:_cs.symbol, chartType:_cs.chartType, color:_cs.color});
       }
     }
-    panelData.push({ symbol: panels[i].symbol, timeframe: panels[i].timeframe, assetClass: panels[i].assetClass, session: panels[i].session, chartType: panels[i].chartType || 'candlestick', compareSymbols: _cmpSave, compareMode: panels[i].compareMode || 'price' });
+    var _maSave = panels[i].maOverlays.map(function(ma) {
+      return {maType:ma.maType, period:ma.period, source:ma.source, color:ma.color, lineStyle:ma.lineStyle, lineWidth:ma.lineWidth};
+    });
+    var _oscSave = panels[i].oscillators.map(function(osc) {
+      var o = {type:osc.type, period:osc.period, source:osc.source, color:osc.color, lineStyle:osc.lineStyle, lineWidth:osc.lineWidth};
+      if (osc.period2 !== undefined) o.period2 = osc.period2;
+      if (osc.color2) o.color2 = osc.color2;
+      return o;
+    });
+    var _avSave = panels[i].anchorVwaps.map(function(av) {
+      return {anchorTime:av.anchorTime, color:av.color, lineStyle:av.lineStyle, lineWidth:av.lineWidth};
+    });
+    panelData.push({
+      symbol: panels[i].symbol, timeframe: panels[i].timeframe, assetClass: panels[i].assetClass, session: panels[i].session,
+      chartType: panels[i].chartType || 'candlestick', compareSymbols: _cmpSave, compareMode: panels[i].compareMode || 'price',
+      maOverlays: _maSave, maColorIdx: panels[i].maColorIdx,
+      oscillators: _oscSave, oscColorIdx: panels[i].oscColorIdx,
+      overlays: {
+        vwap: {enabled:panels[i].overlays.vwap.enabled, color:panels[i].overlays.vwap.color, lineStyle:panels[i].overlays.vwap.lineStyle, lineWidth:panels[i].overlays.vwap.lineWidth},
+        lc: JSON.parse(JSON.stringify(panels[i].overlays.lc))
+      },
+      anchorVwaps: _avSave, avwapColorIdx: panels[i].avwapColorIdx,
+      indicatorBarCollapsed: panels[i].indicatorBarCollapsed
+    });
   }
   // Find and update active layout
   for (var i = 0; i < allLayouts.length; i++) {
@@ -1803,26 +1899,19 @@ function switchLayout(id) {
   var count = getPanelCount(currentLayout);
   for (var i = 0; i < count; i++) {
     var p = makePanel(i);
-    if (ly.panels && ly.panels[i]) {
-      p.symbol = ly.panels[i].symbol || null;
-      p.timeframe = ly.panels[i].timeframe || '5min';
-      p.assetClass = ly.panels[i].assetClass || 'stocks';
-      p.session = ly.panels[i].session || 'extended';
-      p.chartType = ly.panels[i].chartType || 'candlestick';
-      // Restore comparison state
-      if (ly.panels[i].compareSymbols && ly.panels[i].compareSymbols.length) {
-        p.compareSymbols = [];
-        for (var ci = 0; ci < ly.panels[i].compareSymbols.length; ci++) {
-          var sc = ly.panels[i].compareSymbols[ci];
-          p.compareSymbols.push({symbol:sc.symbol, bars:null, chartType:sc.chartType||'line', color:sc.color, series:null});
-        }
-        p.compareMode = ly.panels[i].compareMode || 'price';
-        p.compareColorIdx = p.compareSymbols.length;
-      }
-    }
+    if (ly.panels && ly.panels[i]) _restorePanelState(p, ly.panels[i]);
     panels.push(p);
   }
   createPanelElements(count);
+  // Restore indicator bar open state
+  for (var ri = 0; ri < count; ri++) {
+    if (panels[ri].indicatorBarCollapsed) {
+      var rp = document.getElementById('ind-panel-' + ri);
+      if (rp) { rp.classList.add('open'); rp.innerHTML = buildIndicatorPanelHTML(ri); }
+      var rb = panels[ri].el ? panels[ri].el.querySelector('.ind-btn') : null;
+      if (rb) rb.classList.add('active');
+    }
+  }
   document.getElementById('panels-grid').className = 'layout-' + currentLayout;
   document.getElementById('layout-select').value = currentLayout;
   document.querySelectorAll('.layout-tab').forEach(function(t){ t.classList.toggle('active', t.getAttribute('data-layout')===currentLayout); });
@@ -2770,6 +2859,98 @@ document.addEventListener('click', function(e) {
 });
 
 // ============================================================================
+// CLOUD SYNC (Firebase)
+// ============================================================================
+var fbConfig = null;
+function _loadFbConfig() {
+  fbConfig = loadFromStorage('orb_firebase') || {enabled:false, projectId:'', databaseSecret:'', autoSync:false, lastPush:null, lastPull:null};
+}
+function openCloudSyncSettings(evt) {
+  evt.stopPropagation();
+  _loadFbConfig();
+  var c = fbConfig;
+  var popup = document.getElementById('display-popup');
+  popup.innerHTML = '<div class="dp-header"><span class="dp-title">Cloud Sync</span><span class="dp-close" onclick="closeDisplaySettings()">&times;</span></div>'+
+    '<div class="dp-section"><div class="dp-section-title">Firebase Config</div>'+
+    '<div class="dp-row"><span class="dp-label">Project ID</span><input type="text" id="fb-project" class="dp-input" value="'+(c.projectId||'')+'" placeholder="my-project-id" style="background:#0d1117;border:1px solid #30363d;color:#c9d1d9;border-radius:4px;padding:3px 6px;font-size:11px;width:140px"></div>'+
+    '<div class="dp-row"><span class="dp-label">DB Secret</span><input type="password" id="fb-secret" class="dp-input" value="'+(c.databaseSecret||'')+'" placeholder="database secret" style="background:#0d1117;border:1px solid #30363d;color:#c9d1d9;border-radius:4px;padding:3px 6px;font-size:11px;width:140px"></div>'+
+    '<div class="dp-row"><span class="dp-label">Auto-sync</span><label style="cursor:pointer"><input type="checkbox" id="fb-auto" '+(c.autoSync?'checked':'')+' style="margin-right:4px">Enabled</label></div></div>'+
+    '<div class="dp-section"><div class="dp-section-title">Actions</div>'+
+    '<div style="display:flex;gap:6px;margin:6px 0"><button onclick="fbSaveConfig()" class="fb-btn">Save Config</button><button onclick="fbTestConnection()" class="fb-btn">Test</button></div>'+
+    '<div style="display:flex;gap:6px;margin:6px 0"><button onclick="fbPush()" class="fb-btn fb-btn-push">Push to Cloud</button><button onclick="fbPull()" class="fb-btn fb-btn-pull">Pull from Cloud</button></div></div>'+
+    '<div class="dp-section" style="font-size:10px;color:#6e7681">'+
+    (c.lastPush ? '<div>Last push: '+new Date(c.lastPush).toLocaleString()+'</div>' : '')+
+    (c.lastPull ? '<div>Last pull: '+new Date(c.lastPull).toLocaleString()+'</div>' : '')+
+    (!c.lastPush && !c.lastPull ? '<div>No sync history</div>' : '')+
+    '</div>';
+  popup.style.display = 'block';
+  var r = evt.target.getBoundingClientRect();
+  popup.style.top = (r.bottom + 4) + 'px';
+  popup.style.right = Math.max(4, window.innerWidth - r.right) + 'px';
+  popup.style.left = 'auto';
+}
+function fbSaveConfig() {
+  fbConfig = {
+    enabled: true,
+    projectId: document.getElementById('fb-project').value.trim(),
+    databaseSecret: document.getElementById('fb-secret').value.trim(),
+    autoSync: document.getElementById('fb-auto').checked,
+    lastPush: fbConfig ? fbConfig.lastPush : null,
+    lastPull: fbConfig ? fbConfig.lastPull : null
+  };
+  if (!fbConfig.projectId || !fbConfig.databaseSecret) { fbConfig.enabled = false; }
+  saveToStorage('orb_firebase', fbConfig);
+  closeDisplaySettings();
+}
+function fbTestConnection() {
+  var pid = document.getElementById('fb-project').value.trim();
+  var sec = document.getElementById('fb-secret').value.trim();
+  if (!pid || !sec) { alert('Enter Project ID and DB Secret first.'); return; }
+  fetch('/api/firebase/test', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({projectId:pid, databaseSecret:sec})})
+    .then(function(r){return r.json();})
+    .then(function(d){ alert(d.ok ? 'Connection successful!' : 'Failed: '+(d.error||'Unknown error')); })
+    .catch(function(e){ alert('Error: '+e.message); });
+}
+function fbPush() {
+  if (!fbConfig || !fbConfig.projectId) { alert('Save Firebase config first.'); return; }
+  if (!confirm('Push all local state to Firebase cloud?')) return;
+  fetch('/api/firebase/push', {method:'POST'})
+    .then(function(r){return r.json();})
+    .then(function(d){
+      if (d.ok) {
+        fbConfig.lastPush = new Date().toISOString();
+        saveToStorage('orb_firebase', fbConfig);
+        alert('State pushed to cloud successfully.');
+      } else { alert('Push failed: '+(d.error||'Unknown error')); }
+    })
+    .catch(function(e){ alert('Error: '+e.message); });
+}
+function fbPull() {
+  if (!fbConfig || !fbConfig.projectId) { alert('Save Firebase config first.'); return; }
+  if (!confirm('This will overwrite local state with cloud data. Continue?')) return;
+  fetch('/api/firebase/pull', {method:'POST'})
+    .then(function(r){return r.json();})
+    .then(function(d){
+      if (d.ok && d.state) {
+        _initStateCache(d.state);
+        fbConfig.lastPull = new Date().toISOString();
+        saveToStorage('orb_firebase', fbConfig);
+        location.reload();
+      } else { alert('Pull failed: '+(d.error||'Unknown error')); }
+    })
+    .catch(function(e){ alert('Error: '+e.message); });
+}
+// Auto-sync debounce for saveToStorage
+var _fbPushTimer = null;
+function _fbAutoSync() {
+  if (!fbConfig || !fbConfig.enabled || !fbConfig.autoSync) return;
+  clearTimeout(_fbPushTimer);
+  _fbPushTimer = setTimeout(function() {
+    fetch('/api/firebase/push', {method:'POST'}).catch(function(){});
+  }, 5000);
+}
+
+// ============================================================================
 // KEYBOARD NAVIGATION
 // ============================================================================
 document.addEventListener('keydown', function(e) {
@@ -2788,8 +2969,8 @@ document.addEventListener('keydown', function(e) {
 });
 document.getElementById('dt-start').addEventListener('keydown', function(e) { if (e.key === 'Enter') loadAllPanels(); });
 document.getElementById('dt-end').addEventListener('keydown', function(e) { if (e.key === 'Enter') loadAllPanels(); });
-document.getElementById('dt-start').addEventListener('change', function() { activePeriod = null; document.querySelectorAll('.period-btn').forEach(function(b){b.classList.remove('active');}); loadAllPanels(); });
-document.getElementById('dt-end').addEventListener('change', function() { activePeriod = null; document.querySelectorAll('.period-btn').forEach(function(b){b.classList.remove('active');}); loadAllPanels(); });
+document.getElementById('dt-start').addEventListener('change', function() { activePeriod = null; document.querySelectorAll('.period-btn').forEach(function(b){b.classList.remove('active');}); saveGlobalSettings(); loadAllPanels(); });
+document.getElementById('dt-end').addEventListener('change', function() { activePeriod = null; document.querySelectorAll('.period-btn').forEach(function(b){b.classList.remove('active');}); saveGlobalSettings(); loadAllPanels(); });
 
 // ============================================================================
 // INIT
@@ -2798,9 +2979,22 @@ function _doInit() {
   // Load saved display settings
   var savedDisplay = loadFromStorage('orb_display');
   if (savedDisplay) { for (var k in savedDisplay) { if (savedDisplay.hasOwnProperty(k)) displaySettings[k] = savedDisplay[k]; } applyDisplaySettings(); }
+  // Load saved global settings (sync, date range, active period)
+  var savedSettings = loadFromStorage('orb_settings');
+  if (savedSettings) {
+    if (savedSettings.sync) { for (var sk in savedSettings.sync) { if (savedSettings.sync.hasOwnProperty(sk)) SYNC[sk] = savedSettings.sync[sk]; } }
+    if (savedSettings.activePeriod) activePeriod = savedSettings.activePeriod;
+  }
   var today = new Date();
-  document.getElementById('dt-end').value = fmtDate(today);
-  document.getElementById('dt-start').value = fmtDate(addDays(today, -7));
+  if (savedSettings && savedSettings.dateRange && savedSettings.dateRange.start && savedSettings.dateRange.end) {
+    document.getElementById('dt-start').value = savedSettings.dateRange.start;
+    document.getElementById('dt-end').value = savedSettings.dateRange.end;
+  } else {
+    document.getElementById('dt-end').value = fmtDate(today);
+    document.getElementById('dt-start').value = fmtDate(addDays(today, -7));
+  }
+  // Restore active period button highlight
+  if (activePeriod) { document.querySelectorAll('.period-btn').forEach(function(b) { b.classList.toggle('active', b.textContent === activePeriod); }); }
 
   // Load saved layouts (multi-layout system)
   loadLayouts();
@@ -2810,17 +3004,21 @@ function _doInit() {
   var initCount = getPanelCount(currentLayout);
   for (var i = 0; i < initCount; i++) {
     var p = makePanel(i);
-    if (savedPanels && savedPanels[i]) {
-      p.symbol = savedPanels[i].symbol || null;
-      p.timeframe = savedPanels[i].timeframe || '5min';
-      p.assetClass = savedPanels[i].assetClass || 'stocks';
-      p.session = savedPanels[i].session || 'extended';
-    }
+    if (savedPanels && savedPanels[i]) _restorePanelState(p, savedPanels[i]);
     panels.push(p);
   }
   document.getElementById('layout-select').value = currentLayout;
   document.querySelectorAll('.layout-tab').forEach(function(t){ t.classList.toggle('active', t.getAttribute('data-layout')===currentLayout); });
   createPanelElements(initCount);
+  // Restore indicator bar open state
+  for (var ri = 0; ri < initCount; ri++) {
+    if (panels[ri].indicatorBarCollapsed) {
+      var rp = document.getElementById('ind-panel-' + ri);
+      if (rp) { rp.classList.add('open'); rp.innerHTML = buildIndicatorPanelHTML(ri); }
+      var rb = panels[ri].el ? panels[ri].el.querySelector('.ind-btn') : null;
+      if (rb) rb.classList.add('active');
+    }
+  }
   document.getElementById('panels-grid').className = 'layout-' + currentLayout;
   document.getElementById('tf-select').value = panels[0].timeframe;
   renderNamedLayoutTabs();
@@ -2887,6 +3085,23 @@ function _doInit() {
   document.getElementById('sidebar').addEventListener('wheel', function(e) {
     e.stopPropagation();
   }, true);
+
+  // Firebase auto-pull on init (if configured)
+  _loadFbConfig();
+  if (fbConfig && fbConfig.enabled && fbConfig.autoSync) {
+    fetch('/api/firebase/pull', {method:'POST'})
+      .then(function(r){return r.json();})
+      .then(function(d){
+        if (d.ok && d.state) {
+          var changed = false;
+          for (var k in d.state) {
+            if (k.startsWith('_')) continue;
+            if (JSON.stringify(__stateCache[k]) !== JSON.stringify(d.state[k])) { __stateCache[k] = d.state[k]; changed = true; }
+          }
+          if (changed) { console.log('Cloud sync: new data pulled, reloading...'); location.reload(); }
+        }
+      }).catch(function(){});
+  }
 }
 
 // Bulk-load server state, migrate localStorage if needed, then init

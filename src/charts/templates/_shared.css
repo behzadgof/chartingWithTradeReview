@@ -156,9 +156,15 @@
 .panel-chart-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-height: 0; }
 
 /* Display settings button */
-.display-settings-btn { background: #21262d; border: 1px solid #30363d; border-radius: 4px; padding: 2px 8px; cursor: pointer; color: #8b949e; font-size: var(--ui-font, 11px); transition: all 0.1s; display: flex; align-items: center; gap: 4px; }
-.display-settings-btn:hover { background: #30363d; color: #c9d1d9; }
-.display-settings-btn svg { display: block; }
+.display-settings-btn, .cloud-sync-btn { background: #21262d; border: 1px solid #30363d; border-radius: 4px; padding: 2px 8px; cursor: pointer; color: #8b949e; font-size: var(--ui-font, 11px); transition: all 0.1s; display: flex; align-items: center; gap: 4px; }
+.display-settings-btn:hover, .cloud-sync-btn:hover { background: #30363d; color: #c9d1d9; }
+.display-settings-btn svg, .cloud-sync-btn svg { display: block; }
+.fb-btn { padding:4px 10px; background:#21262d; border:1px solid #30363d; color:#c9d1d9; border-radius:4px; cursor:pointer; font-size:11px; flex:1; }
+.fb-btn:hover { background:#30363d; }
+.fb-btn-push { border-color:#3fb950; color:#3fb950; }
+.fb-btn-push:hover { background:#0d2818; }
+.fb-btn-pull { border-color:#58a6ff; color:#58a6ff; }
+.fb-btn-pull:hover { background:#0d1d31; }
 
 /* Display settings popup */
 #display-popup { display: none; position: fixed; background: #1c2128; border: 1px solid #30363d; border-radius: 8px; padding: 14px 16px; z-index: 250; box-shadow: 0 8px 24px rgba(0,0,0,0.5); min-width: 280px; font-size: 12px; }
