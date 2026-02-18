@@ -27,6 +27,20 @@ except ImportError:
     def _is_trading_day(d: date) -> bool:  # type: ignore[misc]
         return d.weekday() < 5
 
+# Shared data utilities from marketdata SDK (optional; charts works standalone)
+try:
+    from marketdata.utils import (
+        aggregate_bars_df as _md_aggregate,
+        bars_to_dataframe as _md_bars_to_df,
+        convert_timestamps_to_et as _md_convert_tz,
+        filter_trading_hours as _md_filter_hours,
+    )
+except ImportError:
+    _md_aggregate = None  # type: ignore[assignment]
+    _md_bars_to_df = None  # type: ignore[assignment]
+    _md_convert_tz = None  # type: ignore[assignment]
+    _md_filter_hours = None  # type: ignore[assignment]
+
 
 def _filter_trading_days(df: pd.DataFrame) -> pd.DataFrame:
     """Remove bars that fall on non-trading days (weekends/holidays)."""
@@ -71,7 +85,9 @@ def load_bars_from_cache(
 
     # Normalize tz-aware timestamps to tz-naive ET before concat
     for i, f in enumerate(frames):
-        if hasattr(f["timestamp"].dt, "tz") and f["timestamp"].dt.tz is not None:
+        if _md_convert_tz is not None:
+            frames[i] = _md_convert_tz(f)
+        elif hasattr(f["timestamp"].dt, "tz") and f["timestamp"].dt.tz is not None:
             if _ET is not None:
                 frames[i] = f.assign(
                     timestamp=f["timestamp"].dt.tz_convert(_ET).dt.tz_localize(None)
@@ -86,10 +102,13 @@ def load_bars_from_cache(
     df = df[(df["timestamp"] >= start_dt) & (df["timestamp"] <= end_dt)]
 
     # Extended hours: 4 AM - 20:00
-    df = df[
-        (df["timestamp"].dt.hour >= 4)
-        & (df["timestamp"].dt.hour * 60 + df["timestamp"].dt.minute <= 20 * 60)
-    ]
+    if _md_filter_hours is not None:
+        df = _md_filter_hours(df)
+    else:
+        df = df[
+            (df["timestamp"].dt.hour >= 4)
+            & (df["timestamp"].dt.hour * 60 + df["timestamp"].dt.minute <= 20 * 60)
+        ]
     return _filter_trading_days(df)
 
 
@@ -128,6 +147,9 @@ def load_bars_from_manager(
     if not bars:
         return pd.DataFrame()
 
+    if _md_bars_to_df is not None:
+        return _md_bars_to_df(bars, tz="America/New_York")
+
     rows = []
     for b in bars:
         ts = b.timestamp
@@ -150,6 +172,9 @@ def load_bars_from_manager(
 
 def aggregate_bars(df: pd.DataFrame, timeframe: str) -> pd.DataFrame:
     """Aggregate 1-min bars to a larger timeframe via pandas resample."""
+    if _md_aggregate is not None:
+        return _md_aggregate(df, timeframe)
+
     freq_map: dict[str, str] = {
         "1min": "1min",
         "2min": "2min",
@@ -313,10 +338,13 @@ def _load_latest_bars_from_cache(
     df = df.sort_values("timestamp").drop_duplicates(subset=["timestamp"])
 
     # Filter to extended hours only
-    df = df[
-        (df["timestamp"].dt.hour >= 4)
-        & (df["timestamp"].dt.hour * 60 + df["timestamp"].dt.minute <= 20 * 60)
-    ]
+    if _md_filter_hours is not None:
+        df = _md_filter_hours(df)
+    else:
+        df = df[
+            (df["timestamp"].dt.hour >= 4)
+            & (df["timestamp"].dt.hour * 60 + df["timestamp"].dt.minute <= 20 * 60)
+        ]
     return _filter_trading_days(df)
 
 
@@ -394,11 +422,6 @@ def fetch_live_quotes(
 
     quotes: dict[str, dict[str, Any]] = {}
 
-    # Get raw provider for prevDay fallback
-    provider = None
-    if hasattr(manager, "providers") and manager.providers:
-        provider = manager.providers[0]
-
     for sym in symbols:
         try:
             # Try get_snapshot first (includes change/changePct)
@@ -416,28 +439,17 @@ def fetch_live_quotes(
                     prev_close = abs(chg / (chg_pct / 100)) if chg_pct else 0
                     price = round(prev_close + chg, 4)
 
-                # Still no price — try raw prevDay from provider REST API
-                if not price and provider and hasattr(provider, "session"):
-                    try:
-                        api_key = getattr(provider, "api_key", "")
-                        base = getattr(provider, "base_url", "https://api.polygon.io")
-                        url = f"{base}/v2/snapshot/locale/us/markets/stocks/tickers/{sym.upper()}"
-                        resp = provider.session.get(url, params={"apiKey": api_key})
-                        raw = resp.json().get("ticker", {})
-                        # Use day close if available, else prevDay close
-                        day_c = raw.get("day", {}).get("c", 0)
-                        prev_c = raw.get("prevDay", {}).get("c", 0)
-                        if day_c:
-                            price = round(float(day_c), 4)
-                            prev_close = float(prev_c) if prev_c else 0
-                            chg = round(price - prev_close, 4) if prev_close else 0
-                            chg_pct = round((chg / prev_close) * 100, 2) if prev_close else 0
-                        elif prev_c:
-                            price = round(float(prev_c), 4)
-                            chg = 0
-                            chg_pct = 0
-                    except Exception:
-                        pass
+                # Still no price — try daily_bar from snapshot
+                if not price and snap.daily_bar:
+                    price = round(float(snap.daily_bar.close), 4)
+                    if snap.prev_daily_bar:
+                        prev_close = float(snap.prev_daily_bar.close)
+                        chg = round(price - prev_close, 4)
+                        chg_pct = round((chg / prev_close) * 100, 2) if prev_close else 0
+                elif not price and snap.prev_daily_bar:
+                    price = round(float(snap.prev_daily_bar.close), 4)
+                    chg = 0
+                    chg_pct = 0
 
                 if not price:
                     continue
