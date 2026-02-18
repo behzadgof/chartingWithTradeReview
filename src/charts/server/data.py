@@ -13,33 +13,14 @@ from typing import Any
 
 import pandas as pd
 
-# Eastern timezone for converting manager (UTC) timestamps to ET
-try:
-    from zoneinfo import ZoneInfo
-    _ET = ZoneInfo("America/New_York")
-except ImportError:
-    _ET = None  # type: ignore[assignment]
-
-# Market calendar — use full NYSE calendar if available, else weekday-only fallback
-try:
-    from marketdata.calendar import is_trading_day as _is_trading_day
-except ImportError:
-    def _is_trading_day(d: date) -> bool:  # type: ignore[misc]
-        return d.weekday() < 5
-
-# Shared data utilities from marketdata SDK (optional; charts works standalone)
-try:
-    from marketdata.utils import (
-        aggregate_bars_df as _md_aggregate,
-        bars_to_dataframe as _md_bars_to_df,
-        convert_timestamps_to_et as _md_convert_tz,
-        filter_trading_hours as _md_filter_hours,
-    )
-except ImportError:
-    _md_aggregate = None  # type: ignore[assignment]
-    _md_bars_to_df = None  # type: ignore[assignment]
-    _md_convert_tz = None  # type: ignore[assignment]
-    _md_filter_hours = None  # type: ignore[assignment]
+from marketdata.calendar import is_trading_day as _is_trading_day
+from marketdata.utils import (
+    aggregate_bars_df,
+    bars_to_dataframe,
+    convert_timestamps_to_et,
+    derive_quote_from_bars,
+    filter_trading_hours,
+)
 
 
 def _filter_trading_days(df: pd.DataFrame) -> pd.DataFrame:
@@ -85,15 +66,7 @@ def load_bars_from_cache(
 
     # Normalize tz-aware timestamps to tz-naive ET before concat
     for i, f in enumerate(frames):
-        if _md_convert_tz is not None:
-            frames[i] = _md_convert_tz(f)
-        elif hasattr(f["timestamp"].dt, "tz") and f["timestamp"].dt.tz is not None:
-            if _ET is not None:
-                frames[i] = f.assign(
-                    timestamp=f["timestamp"].dt.tz_convert(_ET).dt.tz_localize(None)
-                )
-            else:
-                frames[i] = f.assign(timestamp=f["timestamp"].dt.tz_localize(None))
+        frames[i] = convert_timestamps_to_et(f)
     df = pd.concat(frames, ignore_index=True)
     df = df.sort_values("timestamp").drop_duplicates(subset=["timestamp"])
 
@@ -101,14 +74,7 @@ def load_bars_from_cache(
     end_dt = pd.Timestamp(end) + pd.Timedelta(days=1) - pd.Timedelta(seconds=1)
     df = df[(df["timestamp"] >= start_dt) & (df["timestamp"] <= end_dt)]
 
-    # Extended hours: 4 AM - 20:00
-    if _md_filter_hours is not None:
-        df = _md_filter_hours(df)
-    else:
-        df = df[
-            (df["timestamp"].dt.hour >= 4)
-            & (df["timestamp"].dt.hour * 60 + df["timestamp"].dt.minute <= 20 * 60)
-        ]
+    df = filter_trading_hours(df)
     return _filter_trading_days(df)
 
 
@@ -147,73 +113,12 @@ def load_bars_from_manager(
     if not bars:
         return pd.DataFrame()
 
-    if _md_bars_to_df is not None:
-        return _md_bars_to_df(bars, tz="America/New_York")
-
-    rows = []
-    for b in bars:
-        ts = b.timestamp
-        # Convert to ET then strip timezone to match cache convention (tz-naive ET)
-        if hasattr(ts, "tzinfo") and ts.tzinfo is not None:
-            if _ET is not None:
-                ts = ts.astimezone(_ET).replace(tzinfo=None)
-            else:
-                ts = ts.replace(tzinfo=None)
-        rows.append({
-            "timestamp": ts,
-            "open": b.open,
-            "high": b.high,
-            "low": b.low,
-            "close": b.close,
-            "volume": b.volume,
-        })
-    return pd.DataFrame(rows)
+    return bars_to_dataframe(bars, tz="America/New_York")
 
 
 def aggregate_bars(df: pd.DataFrame, timeframe: str) -> pd.DataFrame:
     """Aggregate 1-min bars to a larger timeframe via pandas resample."""
-    if _md_aggregate is not None:
-        return _md_aggregate(df, timeframe)
-
-    freq_map: dict[str, str] = {
-        "1min": "1min",
-        "2min": "2min",
-        "3min": "3min",
-        "5min": "5min",
-        "10min": "10min",
-        "15min": "15min",
-        "30min": "30min",
-        "1hour": "1h",
-        "2hour": "2h",
-        "4hour": "4h",
-        "1day": "1D",
-    }
-    freq = freq_map.get(timeframe)
-    if freq is None:
-        # Normalize custom timeframes: "65min" → "65min", "3hour" → "3h"
-        import re
-        m = re.match(r"^(\d+)(min|hour|day)$", timeframe)
-        if m:
-            unit_map = {"min": "min", "hour": "h", "day": "D"}
-            freq = m.group(1) + unit_map[m.group(2)]
-        else:
-            freq = timeframe  # pass through as-is to pandas
-    if freq == "1min":
-        return df
-
-    df = df.set_index("timestamp")
-    agg = (
-        df.resample(freq)
-        .agg({
-            "open": "first",
-            "high": "max",
-            "low": "min",
-            "close": "last",
-            "volume": "sum",
-        })
-        .dropna()
-    )
-    return agg.reset_index()
+    return aggregate_bars_df(df, timeframe)
 
 
 def bars_to_json(df: pd.DataFrame) -> list[dict[str, Any]]:
@@ -336,15 +241,7 @@ def _load_latest_bars_from_cache(
         return df
 
     df = df.sort_values("timestamp").drop_duplicates(subset=["timestamp"])
-
-    # Filter to extended hours only
-    if _md_filter_hours is not None:
-        df = _md_filter_hours(df)
-    else:
-        df = df[
-            (df["timestamp"].dt.hour >= 4)
-            & (df["timestamp"].dt.hour * 60 + df["timestamp"].dt.minute <= 20 * 60)
-        ]
+    df = filter_trading_hours(df)
     return _filter_trading_days(df)
 
 
@@ -361,45 +258,33 @@ def fetch_quotes(
     quotes: dict[str, dict[str, Any]] = {}
     for sym in symbols:
         try:
+            bars = None
             if cache_dir:
                 df = _load_latest_bars_from_cache(sym, cache_dir)
+                if not df.empty and len(df) >= 2:
+                    # Use dataframe_to_bars for conversion
+                    from marketdata.utils import dataframe_to_bars
+                    bars = dataframe_to_bars(df)
             elif manager:
                 today = date.today().isoformat()
                 start = (date.today() - pd.Timedelta(days=10)).isoformat()
-                df = load_bars_from_manager(sym, start, today, manager)
-            else:
+                try:
+                    bars = manager.get_bars(
+                        sym, date.fromisoformat(start),
+                        date.fromisoformat(today), timeframe="1min",
+                    )
+                except Exception:
+                    pass
+
+            if not bars or len(bars) < 2:
                 continue
 
-            if df.empty or len(df) < 2:
+            result = derive_quote_from_bars(bars)
+            if result is None:
                 continue
 
-            # Aggregate to daily to get open/close per day
-            df_daily = df.set_index("timestamp").resample("1D").agg({
-                "open": "first", "high": "max", "low": "min",
-                "close": "last", "volume": "sum",
-            }).dropna()
-
-            if df_daily.empty:
-                continue
-
-            last_close = float(df_daily.iloc[-1]["close"])
-            last_vol = int(df_daily.iloc[-1]["volume"])
-            if len(df_daily) >= 2:
-                prev_close = float(df_daily.iloc[-2]["close"])
-            else:
-                prev_close = float(df_daily.iloc[-1]["open"])
-
-            chg = round(last_close - prev_close, 4)
-            chg_pct = round((chg / prev_close) * 100, 2) if prev_close else 0.0
-
-            quotes[sym] = {
-                "price": round(last_close, 2),
-                "change": chg,
-                "changePct": chg_pct,
-                "prevClose": round(prev_close, 2),
-                "volume": last_vol,
-                "source": "cache",
-            }
+            result["source"] = "cache"
+            quotes[sym] = result
         except Exception:
             continue
 
@@ -420,60 +305,12 @@ def fetch_live_quotes(
     if manager is None:
         return {}
 
-    quotes: dict[str, dict[str, Any]] = {}
+    # Delegate to manager's get_live_quotes if available
+    if hasattr(manager, "get_live_quotes"):
+        quotes = manager.get_live_quotes(symbols)
+        # Add source field
+        for sym in quotes:
+            quotes[sym]["source"] = "live"
+        return quotes
 
-    for sym in symbols:
-        try:
-            # Try get_snapshot first (includes change/changePct)
-            if hasattr(manager, "get_snapshot"):
-                snap = manager.get_snapshot(sym)
-                q = snap.quote
-                price = float(q.last_price or 0) if q.last_price else 0.0
-                bid = float(q.bid_price or 0)
-                ask = float(q.ask_price or 0)
-                chg = round(float(snap.change), 4) if snap.change else 0
-                chg_pct = round(float(snap.change_pct), 2) if snap.change_pct else 0
-
-                # If last_price is 0 (market closed), derive from change
-                if not price and chg and chg_pct:
-                    prev_close = abs(chg / (chg_pct / 100)) if chg_pct else 0
-                    price = round(prev_close + chg, 4)
-
-                # Still no price — try daily_bar from snapshot
-                if not price and snap.daily_bar:
-                    price = round(float(snap.daily_bar.close), 4)
-                    if snap.prev_daily_bar:
-                        prev_close = float(snap.prev_daily_bar.close)
-                        chg = round(price - prev_close, 4)
-                        chg_pct = round((chg / prev_close) * 100, 2) if prev_close else 0
-                elif not price and snap.prev_daily_bar:
-                    price = round(float(snap.prev_daily_bar.close), 4)
-                    chg = 0
-                    chg_pct = 0
-
-                if not price:
-                    continue
-
-                quotes[sym] = {
-                    "price": round(price, 4),
-                    "bid": round(bid, 4),
-                    "ask": round(ask, 4),
-                    "change": chg,
-                    "changePct": chg_pct,
-                    "source": "live",
-                }
-            elif hasattr(manager, "get_quote"):
-                q = manager.get_quote(sym)
-                price = float(q.last_price or q.mid_price or 0)
-                if not price:
-                    continue
-                quotes[sym] = {
-                    "price": round(price, 4),
-                    "bid": round(float(q.bid_price or 0), 4),
-                    "ask": round(float(q.ask_price or 0), 4),
-                    "source": "live",
-                }
-        except Exception:
-            continue
-
-    return quotes
+    return {}
