@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "charts"
-version = "0.4.0"
-description = "Interactive market data and trade review charts — TradingView Lightweight Charts"
+version = "0.5.0"
+description = "Interactive market data, trade review, and performance report charts"
 readme = "README.md"
 requires-python = ">=3.11"
 license = {text = "MIT"}
@@ -13,6 +13,8 @@ authors = [{name = "AI-ORB"}]
 
 dependencies = [
     "pandas>=2.0",
+    "numpy>=1.26",
+    "matplotlib>=3.8",
 ]
 
 [project.optional-dependencies]
