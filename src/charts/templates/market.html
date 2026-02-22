@@ -377,8 +377,10 @@ var SESSION_PRESETS = {
 };
 function getActiveSession(){var p=panels[activePanel];return p?p.session:'extended';}
 function getActiveAssetClass(){var p=panels[activePanel];return p?p.assetClass:'stocks';}
-function filterBarsBySession(bars, session){
+function filterBarsBySession(bars, session, timeframe){
   if(!bars||!bars.length||session==='extended'||session==='24h') return bars;
+  // Daily bars are already session-aggregated upstream; intraday filtering would drop all bars.
+  if (timeframe && String(timeframe).toLowerCase().indexOf('day') >= 0) return bars;
   return bars.filter(function(b){
     var d=new Date(b.time*1000);
     var m=d.getUTCHours()*60+d.getUTCMinutes();
@@ -2276,7 +2278,7 @@ function renderPanelChart(idx) {
   if (!p.el) return;
   var container = p.el.querySelector('.panel-chart');
   container.innerHTML = '<div class="panel-loading"><div class="spinner"></div></div>';
-  var bars = filterBarsBySession(p.bars, p.session);
+  var bars = filterBarsBySession(p.bars, p.session, p.timeframe);
   if (!bars || !bars.length) { container.innerHTML = '<div class="panel-empty">No data for session</div>'; return; }
   p.filteredBars = bars; // keep reference for OHLCV lookups
   var w = container.clientWidth || 400, h = container.clientHeight || 300;
@@ -2340,7 +2342,7 @@ function renderPanelChart(idx) {
         var cs = p.compareSymbols[ci];
         cs.series = null; // reset reference
         if (!cs.bars || !cs.bars.length) continue;
-        var csBars = filterBarsBySession(cs.bars, p.session);
+        var csBars = filterBarsBySession(cs.bars, p.session, p.timeframe);
         if (!csBars || !csBars.length) continue;
 
         if (isPerf) {
@@ -2524,7 +2526,7 @@ function renderPanelChart(idx) {
                 for (var ci = 0; ci < pp.compareSymbols.length; ci++) {
                   var cs = pp.compareSymbols[ci];
                   if (!cs.series || !cs.bars || !cs.bars.length) continue;
-                  var csBars = filterBarsBySession(cs.bars, pp.session);
+                  var csBars = filterBarsBySession(cs.bars, pp.session, pp.timeframe);
                   if (!csBars.length) continue;
                   var csStart = 0;
                   for (var j = 0; j < csBars.length; j++) {
