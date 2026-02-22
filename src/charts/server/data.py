@@ -55,6 +55,9 @@ except ModuleNotFoundError:
         elif tf.endswith("hour"):
             hours = int(tf[:-4])
             rule = f"{hours}h"
+        elif tf.endswith("day"):
+            days = int(tf[:-3])
+            rule = f"{days}D"
         else:
             raise ValueError(f"Unsupported timeframe: {timeframe}")
 
@@ -360,13 +363,14 @@ def fetch_quotes(
     for sym in symbols:
         try:
             bars = None
+            source = "cache"
             if cache_dir:
                 df = _load_latest_bars_from_cache(sym, cache_dir)
                 if not df.empty and len(df) >= 2:
                     bars = dataframe_to_bars(df)
-            elif manager:
+            if (not bars or len(bars) < 2) and manager:
                 today = date.today().isoformat()
-                start = (date.today() - pd.Timedelta(days=10)).isoformat()
+                start = (date.today() - timedelta(days=10)).isoformat()
                 try:
                     bars = manager.get_bars(
                         sym,
@@ -374,6 +378,8 @@ def fetch_quotes(
                         date.fromisoformat(today),
                         timeframe="1min",
                     )
+                    if bars and len(bars) >= 2:
+                        source = "provider"
                 except Exception:
                     pass
 
@@ -384,7 +390,7 @@ def fetch_quotes(
             if result is None:
                 continue
 
-            result["source"] = "cache"
+            result["source"] = source
             quotes[sym] = result
         except Exception:
             continue

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import calendar as cal_mod
 from datetime import date, datetime
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pandas as pd
 import pytest
@@ -102,6 +102,13 @@ class TestAggregation:
         df = _make_1min_df("2024-01-17 10:00", 120)
         result = aggregate_bars(df, "2hour")
         assert len(result) == 1
+
+    def test_1day_aggregation(self):
+        day1 = _make_1min_df("2024-01-17 10:00", 5)
+        day2 = _make_1min_df("2024-01-18 10:00", 5)
+        df = pd.concat([day1, day2], ignore_index=True)
+        result = aggregate_bars(df, "1day")
+        assert len(result) == 2
 
 
 # ---------------------------------------------------------------------------
@@ -319,6 +326,28 @@ class TestFetchQuotes:
     def test_no_sources(self):
         result = fetch_quotes(["AAPL"])
         assert result == {}
+
+    def test_falls_back_to_manager_when_cache_missing_symbol(self, tmp_path):
+        manager = MagicMock()
+        bar1 = MagicMock()
+        bar1.timestamp = datetime(2024, 1, 17, 10, 0)
+        bar1.open = 100
+        bar1.high = 101
+        bar1.low = 99
+        bar1.close = 100
+        bar1.volume = 500
+        bar2 = MagicMock()
+        bar2.timestamp = datetime(2024, 1, 17, 10, 1)
+        bar2.open = 100
+        bar2.high = 102
+        bar2.low = 100
+        bar2.close = 101
+        bar2.volume = 700
+        manager.get_bars.return_value = [bar1, bar2]
+
+        result = fetch_quotes(["AAPL"], cache_dir=tmp_path, manager=manager)
+        assert "AAPL" in result
+        assert result["AAPL"]["source"] == "provider"
 
 
 # ---------------------------------------------------------------------------

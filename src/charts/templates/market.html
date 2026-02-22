@@ -1301,7 +1301,7 @@ function renderWLTabs() {
   html += '<div class="wl-tab-add" onclick="addWLTab()" title="New watchlist">+</div>';
   el.innerHTML = html;
 }
-function switchWLTab(i) { activeWLIdx = i; renderWLTabs(); renderSymbolList(); saveWatchlists(); }
+function switchWLTab(i) { activeWLIdx = i; renderWLTabs(); renderSymbolList(); saveWatchlists(); fetchAllQuotes(); }
 function addWLTab() {
   var name = prompt('Watchlist name:', 'List ' + (watchlists.length + 1));
   if (!name) return;
@@ -1595,31 +1595,58 @@ function fetchQuoteFor(sym) {
     })
     .catch(function() {});
 }
+function _getQuoteSymbols() {
+  var seen = {};
+  var symbols = [];
+  watchlists.forEach(function(wl) {
+    if (!wl || !wl.groups) return;
+    wl.groups.forEach(function(g) {
+      if (!g || !g.symbols) return;
+      g.symbols.forEach(function(sym) {
+        var s = String(sym || '').toUpperCase().trim();
+        if (!s || seen[s]) return;
+        seen[s] = true;
+        symbols.push(s);
+      });
+    });
+  });
+  return symbols;
+}
+function _quoteQuery(symbols) {
+  if (!symbols || !symbols.length) return '';
+  return '?symbols=' + encodeURIComponent(symbols.join(','));
+}
 function fetchAllQuotes() {
+  var symbols = _getQuoteSymbols();
+  var query = _quoteQuery(symbols);
   // Try live quotes first, fall back to cached/delayed
-  fetch('/api/quotes/live')
+  return fetch('/api/quotes/live' + query)
     .then(function(r) { return r.ok ? r.json() : null; })
     .then(function(data) {
-      if (!data) return fetchCachedQuotes();
+      if (!data) return fetchCachedQuotes(symbols);
       var hasLive = false;
       for (var sym in data) {
         if (data.hasOwnProperty(sym)) { quoteCache[sym] = data[sym]; hasLive = true; }
       }
       if (hasLive) { quoteSource = 'live'; updateQuoteStatus(); renderSymbolList(); return; }
-      return fetchCachedQuotes();
+      return fetchCachedQuotes(symbols);
     })
-    .catch(function() { return fetchCachedQuotes(); });
+    .catch(function() { return fetchCachedQuotes(symbols); });
 }
-function fetchCachedQuotes() {
-  return fetch('/api/quotes')
+function fetchCachedQuotes(symbols) {
+  return fetch('/api/quotes' + _quoteQuery(symbols))
     .then(function(r) { return r.ok ? r.json() : {}; })
     .then(function(data) {
+      var hasAny = false;
       if (data) {
         for (var sym in data) {
-          if (data.hasOwnProperty(sym)) quoteCache[sym] = data[sym];
+          if (data.hasOwnProperty(sym)) {
+            quoteCache[sym] = data[sym];
+            hasAny = true;
+          }
         }
       }
-      quoteSource = 'closed';
+      quoteSource = hasAny ? 'delayed' : 'closed';
       updateQuoteStatus();
       renderSymbolList();
     })
