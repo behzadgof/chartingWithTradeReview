@@ -371,17 +371,19 @@ def fetch_quotes(
             if (not bars or len(bars) < 2) and manager:
                 today = date.today().isoformat()
                 start = (date.today() - timedelta(days=10)).isoformat()
-                try:
-                    bars = manager.get_bars(
-                        sym,
-                        date.fromisoformat(start),
-                        date.fromisoformat(today),
-                        timeframe="1min",
-                    )
-                    if bars and len(bars) >= 2:
-                        source = "provider"
-                except Exception:
-                    pass
+                for tf in ("1day", "1min"):
+                    try:
+                        bars = manager.get_bars(
+                            sym,
+                            date.fromisoformat(start),
+                            date.fromisoformat(today),
+                            timeframe=tf,
+                        )
+                        if bars and len(bars) >= 2:
+                            source = "provider"
+                            break
+                    except Exception:
+                        continue
 
             if not bars or len(bars) < 2:
                 continue
@@ -403,10 +405,121 @@ def fetch_live_quotes(symbols: list[str], manager: Any = None) -> dict[str, dict
     if manager is None:
         return {}
 
-    if hasattr(manager, "get_live_quotes"):
-        quotes = manager.get_live_quotes(symbols)
-        for sym in quotes:
-            quotes[sym]["source"] = "live"
-        return quotes
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for sym in symbols:
+        key = str(sym or "").upper().strip()
+        if key and key not in seen:
+            normalized.append(key)
+            seen.add(key)
+    if not normalized:
+        return {}
 
-    return {}
+    if hasattr(manager, "get_live_quotes"):
+        try:
+            quotes = manager.get_live_quotes(normalized)
+            if isinstance(quotes, dict):
+                for sym in quotes:
+                    quotes[sym]["source"] = "live"
+                if quotes:
+                    return quotes
+        except Exception:
+            pass
+
+    # Polygon batch snapshot fallback (single request for many symbols).
+    providers = getattr(manager, "providers", None)
+    if providers:
+        provider = providers[0]
+        session = getattr(provider, "session", None)
+        base_url = getattr(provider, "base_url", None)
+        api_key = getattr(provider, "api_key", None)
+        if session is not None and base_url and api_key:
+            try:
+                out: dict[str, dict[str, Any]] = {}
+                chunk_size = 200
+                for i in range(0, len(normalized), chunk_size):
+                    chunk = normalized[i : i + chunk_size]
+                    resp = session.get(
+                        f"{base_url}/v2/snapshot/locale/us/markets/stocks/tickers",
+                        params={"apiKey": api_key, "tickers": ",".join(chunk)},
+                    )
+                    if hasattr(resp, "raise_for_status"):
+                        resp.raise_for_status()
+                    payload = resp.json() if hasattr(resp, "json") else {}
+                    tickers = payload.get("tickers", []) if isinstance(payload, dict) else []
+                    for row in tickers:
+                        sym = str(row.get("ticker", "")).upper().strip()
+                        if not sym:
+                            continue
+                        last_trade = row.get("lastTrade") or {}
+                        day = row.get("day") or {}
+                        price = last_trade.get("p")
+                        if price is None:
+                            price = day.get("c")
+                        if price is None:
+                            continue
+                        change = row.get("todaysChange")
+                        change_pct = row.get("todaysChangePerc")
+                        out[sym] = {
+                            "price": float(price),
+                            "change": float(change) if change is not None else None,
+                            "changePct": float(change_pct) if change_pct is not None else None,
+                            "source": "live",
+                        }
+                if out:
+                    return out
+            except Exception:
+                pass
+
+    # Generic provider fallback: synthesize a quote from Quote model objects.
+    out: dict[str, dict[str, Any]] = {}
+
+    def _price_from_quote_obj(q: Any) -> float | None:
+        last = getattr(q, "last_price", None)
+        if last is not None:
+            try:
+                if float(last) > 0:
+                    return float(last)
+            except Exception:
+                pass
+        bid = getattr(q, "bid_price", None)
+        ask = getattr(q, "ask_price", None)
+        try:
+            if bid is not None and ask is not None and float(bid) > 0 and float(ask) > 0:
+                return (float(bid) + float(ask)) / 2.0
+        except Exception:
+            pass
+        return None
+
+    if hasattr(manager, "get_quotes"):
+        try:
+            quotes = manager.get_quotes(normalized)
+            for q in quotes:
+                sym = str(getattr(q, "symbol", "")).upper().strip()
+                price = _price_from_quote_obj(q)
+                if sym and price is not None:
+                    out[sym] = {
+                        "price": float(price),
+                        "change": None,
+                        "changePct": None,
+                        "source": "live",
+                    }
+        except Exception:
+            pass
+
+    if not out and hasattr(manager, "get_quote"):
+        for sym in normalized:
+            try:
+                q = manager.get_quote(sym)
+                price = _price_from_quote_obj(q)
+                if price is not None:
+                    out[sym] = {
+                        "price": float(price),
+                        "change": None,
+                        "changePct": None,
+                        "source": "live",
+                    }
+            except Exception:
+                continue
+
+    return out

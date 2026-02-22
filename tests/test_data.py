@@ -15,6 +15,7 @@ from charts.server.data import (
     bars_to_json,
     fetch_bars,
     fetch_bars_batch,
+    fetch_live_quotes,
     fetch_quotes,
     load_bars_from_cache,
     load_bars_from_manager,
@@ -348,6 +349,64 @@ class TestFetchQuotes:
         result = fetch_quotes(["AAPL"], cache_dir=tmp_path, manager=manager)
         assert "AAPL" in result
         assert result["AAPL"]["source"] == "provider"
+
+
+# ---------------------------------------------------------------------------
+# fetch_live_quotes
+# ---------------------------------------------------------------------------
+
+class TestFetchLiveQuotes:
+    def test_none_manager(self):
+        assert fetch_live_quotes(["AAPL"], manager=None) == {}
+
+    def test_manager_get_live_quotes(self):
+        manager = MagicMock()
+        manager.get_live_quotes.return_value = {"AAPL": {"price": 101.25}}
+        result = fetch_live_quotes(["AAPL"], manager=manager)
+        assert result["AAPL"]["price"] == 101.25
+        assert result["AAPL"]["source"] == "live"
+
+    def test_polygon_batch_snapshot_fallback(self):
+        provider = MagicMock()
+        provider.api_key = "test-key"
+        provider.base_url = "https://api.polygon.io"
+        response = MagicMock()
+        response.json.return_value = {
+            "tickers": [
+                {
+                    "ticker": "AAPL",
+                    "lastTrade": {"p": 189.42},
+                    "todaysChange": 1.23,
+                    "todaysChangePerc": 0.65,
+                }
+            ]
+        }
+        provider.session.get.return_value = response
+
+        manager = MagicMock()
+        manager.providers = [provider]
+
+        result = fetch_live_quotes(["AAPL"], manager=manager)
+        assert "AAPL" in result
+        assert result["AAPL"]["price"] == 189.42
+        assert result["AAPL"]["source"] == "live"
+
+    def test_get_quotes_fallback(self):
+        quote = MagicMock()
+        quote.symbol = "MSFT"
+        quote.last_price = 402.1
+        quote.bid_price = 402.0
+        quote.ask_price = 402.2
+
+        manager = MagicMock()
+        manager.get_live_quotes.side_effect = AttributeError
+        manager.providers = []
+        manager.get_quotes.return_value = [quote]
+
+        result = fetch_live_quotes(["MSFT"], manager=manager)
+        assert "MSFT" in result
+        assert result["MSFT"]["price"] == 402.1
+        assert result["MSFT"]["source"] == "live"
 
 
 # ---------------------------------------------------------------------------
