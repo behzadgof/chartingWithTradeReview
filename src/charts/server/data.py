@@ -419,10 +419,22 @@ def fetch_live_quotes(symbols: list[str], manager: Any = None) -> dict[str, dict
         try:
             quotes = manager.get_live_quotes(normalized)
             if isinstance(quotes, dict):
-                for sym in quotes:
-                    quotes[sym]["source"] = "live"
-                if quotes:
-                    return quotes
+                cleaned: dict[str, dict[str, Any]] = {}
+                for sym, payload in quotes.items():
+                    if not isinstance(payload, dict):
+                        continue
+                    try:
+                        price = float(payload.get("price"))
+                    except Exception:
+                        continue
+                    if price <= 0:
+                        continue
+                    item = dict(payload)
+                    item["price"] = price
+                    item["source"] = "live"
+                    cleaned[str(sym).upper().strip()] = item
+                if cleaned:
+                    return cleaned
         except Exception:
             pass
 
@@ -458,10 +470,16 @@ def fetch_live_quotes(symbols: list[str], manager: Any = None) -> dict[str, dict
                             price = day.get("c")
                         if price is None:
                             continue
+                        try:
+                            price = float(price)
+                        except Exception:
+                            continue
+                        if price <= 0:
+                            continue
                         change = row.get("todaysChange")
                         change_pct = row.get("todaysChangePerc")
                         out[sym] = {
-                            "price": float(price),
+                            "price": price,
                             "change": float(change) if change is not None else None,
                             "changePct": float(change_pct) if change_pct is not None else None,
                             "source": "live",

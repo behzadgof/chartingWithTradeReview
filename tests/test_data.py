@@ -366,6 +366,17 @@ class TestFetchLiveQuotes:
         assert result["AAPL"]["price"] == 101.25
         assert result["AAPL"]["source"] == "live"
 
+    def test_manager_get_live_quotes_ignores_zero_prices(self):
+        manager = MagicMock()
+        manager.get_live_quotes.return_value = {
+            "AAPL": {"price": 0},
+            "MSFT": {"price": 410.5},
+        }
+        result = fetch_live_quotes(["AAPL", "MSFT"], manager=manager)
+        assert "AAPL" not in result
+        assert result["MSFT"]["price"] == 410.5
+        assert result["MSFT"]["source"] == "live"
+
     def test_polygon_batch_snapshot_fallback(self):
         provider = MagicMock()
         provider.api_key = "test-key"
@@ -390,6 +401,27 @@ class TestFetchLiveQuotes:
         assert "AAPL" in result
         assert result["AAPL"]["price"] == 189.42
         assert result["AAPL"]["source"] == "live"
+
+    def test_polygon_batch_snapshot_ignores_zero_prices(self):
+        provider = MagicMock()
+        provider.api_key = "test-key"
+        provider.base_url = "https://api.polygon.io"
+        response = MagicMock()
+        response.json.return_value = {
+            "tickers": [
+                {"ticker": "AAPL", "lastTrade": {"p": 0}},
+                {"ticker": "MSFT", "lastTrade": {"p": 402.1}},
+            ]
+        }
+        provider.session.get.return_value = response
+
+        manager = MagicMock()
+        manager.providers = [provider]
+
+        result = fetch_live_quotes(["AAPL", "MSFT"], manager=manager)
+        assert "AAPL" not in result
+        assert "MSFT" in result
+        assert result["MSFT"]["price"] == 402.1
 
     def test_get_quotes_fallback(self):
         quote = MagicMock()
