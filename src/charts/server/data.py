@@ -7,6 +7,8 @@ timeframe aggregation, and symbol discovery.
 from __future__ import annotations
 
 import calendar as cal_mod
+import concurrent.futures
+import os
 from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
@@ -167,6 +169,155 @@ def _filter_trading_days(df: pd.DataFrame) -> pd.DataFrame:
     return df[mask]
 
 
+def _filter_regular_hours(df: pd.DataFrame) -> pd.DataFrame:
+    """Filter bars to regular US equity session (09:30-16:00 ET)."""
+    if df.empty or "timestamp" not in df.columns:
+        return df
+    out = convert_timestamps_to_et(df)
+    mins = out["timestamp"].dt.hour * 60 + out["timestamp"].dt.minute
+    return out[(mins >= (9 * 60 + 30)) & (mins < (16 * 60))]
+
+
+def _trading_days_between(start: date, end: date) -> list[date]:
+    """Return all trading days in [start, end]."""
+    days: list[date] = []
+    current = start
+    while current <= end:
+        if _is_trading_day(current):
+            days.append(current)
+        current += timedelta(days=1)
+    return days
+
+
+def _contiguous_ranges(days: list[date]) -> list[tuple[date, date]]:
+    """Group sorted days into contiguous date ranges."""
+    if not days:
+        return []
+    ranges: list[tuple[date, date]] = []
+    start = days[0]
+    prev = days[0]
+    for day in days[1:]:
+        if day == prev + timedelta(days=1):
+            prev = day
+            continue
+        ranges.append((start, prev))
+        start = day
+        prev = day
+    ranges.append((start, prev))
+    return ranges
+
+
+def _env_int(name: str, default: int) -> int:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    try:
+        return int(raw)
+    except Exception:
+        return default
+
+
+def _previous_trading_day(d: date) -> date:
+    cur = d - timedelta(days=1)
+    while not _is_trading_day(cur):
+        cur -= timedelta(days=1)
+    return cur
+
+
+def _load_polygon_grouped_daily_quotes(
+    symbols: list[str],
+    manager: Any,
+) -> dict[str, dict[str, Any]]:
+    """Fetch many daily quotes at once from Polygon grouped daily endpoint."""
+    providers = getattr(manager, "providers", None)
+    if not isinstance(providers, (list, tuple)) or not providers:
+        return {}
+    provider = providers[0]
+    session = getattr(provider, "session", None)
+    base_url = getattr(provider, "base_url", None)
+    api_key = getattr(provider, "api_key", None)
+    if session is None or not base_url or not api_key:
+        return {}
+
+    wanted = {str(s).upper().strip() for s in symbols if str(s).strip()}
+    if not wanted:
+        return {}
+
+    def _fetch_grouped(day: date) -> dict[str, dict[str, Any]]:
+        try:
+            resp = session.get(
+                f"{base_url}/v2/aggs/grouped/locale/us/market/stocks/{day.isoformat()}",
+                params={"adjusted": "true", "apiKey": api_key},
+            )
+            if hasattr(resp, "raise_for_status"):
+                resp.raise_for_status()
+            payload = resp.json() if hasattr(resp, "json") else {}
+            rows = payload.get("results", []) if isinstance(payload, dict) else []
+            out: dict[str, dict[str, Any]] = {}
+            for row in rows:
+                sym = str(row.get("T", "")).upper().strip()
+                if sym and sym in wanted:
+                    out[sym] = row
+            return out
+        except Exception:
+            return {}
+
+    cur_day = date.today()
+    while not _is_trading_day(cur_day):
+        cur_day -= timedelta(days=1)
+
+    current = _fetch_grouped(cur_day)
+    attempts = 0
+    while not current and attempts < 5:
+        cur_day = _previous_trading_day(cur_day)
+        current = _fetch_grouped(cur_day)
+        attempts += 1
+    if not current:
+        return {}
+
+    prev_day = _previous_trading_day(cur_day)
+    previous = _fetch_grouped(prev_day)
+
+    quotes: dict[str, dict[str, Any]] = {}
+    for sym, row in current.items():
+        close = row.get("c")
+        if close is None:
+            continue
+        try:
+            price = float(close)
+        except Exception:
+            continue
+        if price <= 0:
+            continue
+
+        prev_close = None
+        prev_row = previous.get(sym)
+        if isinstance(prev_row, dict):
+            pc = prev_row.get("c")
+            try:
+                if pc is not None:
+                    prev_close = float(pc)
+            except Exception:
+                prev_close = None
+
+        change = None
+        change_pct = None
+        if prev_close is not None and prev_close != 0:
+            change = price - prev_close
+            change_pct = (change / prev_close) * 100.0
+
+        quotes[sym] = {
+            "price": price,
+            "change": change,
+            "changePct": change_pct,
+            "prevClose": prev_close,
+            "volume": int(row.get("v", 0) or 0),
+            "source": "provider",
+        }
+
+    return quotes
+
+
 def get_available_symbols(cache_dir: str | Path | None = None) -> list[str]:
     """Return sorted list of symbols with cached 1-min parquet data."""
     if cache_dir is None:
@@ -221,6 +372,7 @@ def load_bars_from_manager(
     start: str,
     end: str,
     manager: Any,
+    timeframe: str = "1min",
 ) -> pd.DataFrame:
     """Load bars using a MarketDataManager instance."""
     bars = None
@@ -229,7 +381,7 @@ def load_bars_from_manager(
             symbol,
             date.fromisoformat(start),
             date.fromisoformat(end),
-            timeframe="1min",
+            timeframe=timeframe,
         )
     except Exception:
         if hasattr(manager, "providers") and manager.providers:
@@ -238,7 +390,7 @@ def load_bars_from_manager(
                     symbol,
                     date.fromisoformat(start),
                     date.fromisoformat(end),
-                    timeframe="1min",
+                    timeframe=timeframe,
                 )
             except Exception:
                 return pd.DataFrame()
@@ -249,6 +401,34 @@ def load_bars_from_manager(
     return bars_to_dataframe(bars, tz="America/New_York")
 
 
+def load_bars_from_primary_provider(
+    symbol: str,
+    start: str,
+    end: str,
+    manager: Any,
+    timeframe: str = "1min",
+) -> pd.DataFrame:
+    """Load bars directly from the first provider, bypassing manager cache."""
+    providers = getattr(manager, "providers", None)
+    if not isinstance(providers, (list, tuple)) or not providers:
+        return pd.DataFrame()
+    provider = providers[0]
+    if not hasattr(provider, "get_bars"):
+        return pd.DataFrame()
+    try:
+        bars = provider.get_bars(
+            symbol,
+            date.fromisoformat(start),
+            date.fromisoformat(end),
+            timeframe=timeframe,
+        )
+    except Exception:
+        return pd.DataFrame()
+    if not bars:
+        return pd.DataFrame()
+    return bars_to_dataframe(bars, tz="America/New_York")
+
+
 def aggregate_bars(df: pd.DataFrame, timeframe: str) -> pd.DataFrame:
     """Aggregate 1-min bars to a larger timeframe via pandas resample."""
     return aggregate_bars_df(df, timeframe)
@@ -256,18 +436,27 @@ def aggregate_bars(df: pd.DataFrame, timeframe: str) -> pd.DataFrame:
 
 def bars_to_json(df: pd.DataFrame) -> list[dict[str, Any]]:
     """Convert DataFrame rows to JSON-serializable bar dicts."""
+    if df.empty:
+        return []
+
+    ts = df["timestamp"]
+    unix_times = [cal_mod.timegm(t.timetuple()) for t in ts]
+    opens = [round(float(v), 4) for v in df["open"].tolist()]
+    highs = [round(float(v), 4) for v in df["high"].tolist()]
+    lows = [round(float(v), 4) for v in df["low"].tolist()]
+    closes = [round(float(v), 4) for v in df["close"].tolist()]
+    volumes = df["volume"].fillna(0).astype(int).tolist()
+
     bars: list[dict[str, Any]] = []
-    for _, row in df.iterrows():
-        ts = row["timestamp"]
-        unix_ts = cal_mod.timegm(ts.timetuple())
+    for i in range(len(unix_times)):
         bars.append(
             {
-                "time": unix_ts,
-                "open": round(float(row["open"]), 4),
-                "high": round(float(row["high"]), 4),
-                "low": round(float(row["low"]), 4),
-                "close": round(float(row["close"]), 4),
-                "volume": int(row["volume"]),
+                "time": int(unix_times[i]),
+                "open": float(opens[i]),
+                "high": float(highs[i]),
+                "low": float(lows[i]),
+                "close": float(closes[i]),
+                "volume": int(volumes[i]),
             }
         )
     return bars
@@ -280,8 +469,62 @@ def fetch_bars(
     timeframe: str = "1min",
     cache_dir: str | Path | None = None,
     manager: Any = None,
+    session: str = "extended",
 ) -> list[dict[str, Any]]:
     """High-level bar fetcher: cache -> manager -> aggregate -> JSON."""
+    tf = str(timeframe or "1min").strip().lower()
+    start_date = date.fromisoformat(start)
+    end_date = date.fromisoformat(end)
+
+    # Fast path: prefer native provider timeframe for non-1min requests.
+    if manager and tf != "1min":
+        df_native = load_bars_from_primary_provider(symbol, start, end, manager, timeframe=tf)
+        if df_native.empty:
+            df_native = load_bars_from_manager(symbol, start, end, manager, timeframe=tf)
+        if not df_native.empty:
+            df_native = _filter_trading_days(df_native)
+            if session == "regular" and not tf.endswith("day"):
+                df_native = _filter_regular_hours(df_native)
+            if df_native.empty:
+                return []
+            return bars_to_json(df_native)
+
+    # Fast path: if cache has 1-min bars, aggregate locally for higher
+    # timeframes when provider-native fetch is unavailable.
+    if tf != "1min" and cache_dir:
+        df_cached = load_bars_from_cache(symbol, start, end, cache_dir)
+        if not df_cached.empty:
+            if manager and end_date >= (date.today() - timedelta(days=3)):
+                tail_start = max(start_date, df_cached["timestamp"].max().date())
+                fresh_tail = load_bars_from_primary_provider(
+                    symbol,
+                    tail_start.isoformat(),
+                    end,
+                    manager,
+                    timeframe="1min",
+                )
+                if fresh_tail.empty:
+                    fresh_tail = load_bars_from_manager(
+                        symbol,
+                        tail_start.isoformat(),
+                        end,
+                        manager,
+                        timeframe="1min",
+                    )
+                if not fresh_tail.empty:
+                    df_cached = pd.concat([df_cached, fresh_tail], ignore_index=True)
+                    df_cached = df_cached.sort_values("timestamp").drop_duplicates(subset=["timestamp"])
+
+            df_cached = _filter_trading_days(df_cached)
+            if session == "regular" and not tf.endswith("day"):
+                df_cached = _filter_regular_hours(df_cached)
+            if df_cached.empty:
+                return []
+            df_cached = aggregate_bars(df_cached, tf)
+            if df_cached.empty:
+                return []
+            return bars_to_json(df_cached)
+
     df = pd.DataFrame()
     if cache_dir:
         df = load_bars_from_cache(symbol, start, end, cache_dir)
@@ -289,18 +532,91 @@ def fetch_bars(
         if df.empty:
             df = load_bars_from_manager(symbol, start, end, manager)
         else:
+            cache_min = df["timestamp"].min().date()
             cache_max = df["timestamp"].max().date()
-            end_date = date.fromisoformat(end)
-            if cache_max < end_date:
-                next_day = cache_max + timedelta(days=1)
-                mgr_df = load_bars_from_manager(symbol, next_day.isoformat(), end, manager)
-                if not mgr_df.empty:
-                    df = pd.concat([df, mgr_df], ignore_index=True)
-                    df = df.sort_values("timestamp")
+            ranges_to_backfill: list[tuple[date, date]] = []
+
+            # Fast path: fill leading/trailing edges with at most two calls.
+            if start_date < cache_min:
+                ranges_to_backfill.append((start_date, cache_min - timedelta(days=1)))
+            if end_date > cache_max:
+                ranges_to_backfill.append((cache_max + timedelta(days=1), end_date))
+
+            # Deep gap scan is optional and only enabled for short date ranges.
+            deep_scan_days = _env_int("CHARTS_DEEP_GAP_SCAN_DAYS", 14)
+            max_gap_ranges = _env_int("CHARTS_DEEP_GAP_SCAN_MAX_RANGES", 6)
+            span_days = (end_date - start_date).days + 1
+            if deep_scan_days > 0 and span_days <= deep_scan_days:
+                available_days = set(df["timestamp"].dt.date.tolist())
+                required_days = _trading_days_between(start_date, end_date)
+                missing_days = sorted(d for d in required_days if d not in available_days)
+                gap_ranges = _contiguous_ranges(missing_days)
+                if len(gap_ranges) <= max_gap_ranges:
+                    ranges_to_backfill.extend(gap_ranges)
+
+            if ranges_to_backfill:
+                # De-duplicate overlapping ranges while preserving order.
+                unique_ranges: list[tuple[date, date]] = []
+                seen: set[tuple[date, date]] = set()
+                for r in ranges_to_backfill:
+                    if r[0] > r[1]:
+                        continue
+                    if r not in seen:
+                        unique_ranges.append(r)
+                        seen.add(r)
+
+                backfills: list[pd.DataFrame] = []
+                for range_start, range_end in unique_ranges:
+                    # Prefer direct provider for ranges that may include latest
+                    # data to avoid serving stale manager cache.
+                    prefer_provider = range_end >= (date.today() - timedelta(days=3))
+                    fetched = pd.DataFrame()
+                    if prefer_provider:
+                        fetched = load_bars_from_primary_provider(
+                            symbol,
+                            range_start.isoformat(),
+                            range_end.isoformat(),
+                            manager,
+                        )
+                    if fetched.empty:
+                        fetched = load_bars_from_manager(
+                            symbol,
+                            range_start.isoformat(),
+                            range_end.isoformat(),
+                            manager,
+                        )
+                    if not fetched.empty:
+                        backfills.append(fetched)
+                if backfills:
+                    df = pd.concat([df, *backfills], ignore_index=True)
+                    df = df.sort_values("timestamp").drop_duplicates(subset=["timestamp"])
+
+        # Refresh the tail window for near-current ranges so latest bars do not
+        # stay stale when the last cached day already exists.
+        if not df.empty and end_date >= (date.today() - timedelta(days=3)):
+            tail_start = max(start_date, df["timestamp"].max().date())
+            fresh_tail = load_bars_from_primary_provider(
+                symbol,
+                tail_start.isoformat(),
+                end,
+                manager,
+            )
+            if fresh_tail.empty:
+                fresh_tail = load_bars_from_manager(
+                    symbol,
+                    tail_start.isoformat(),
+                    end,
+                    manager,
+                )
+            if not fresh_tail.empty:
+                df = pd.concat([df, fresh_tail], ignore_index=True)
+                df = df.sort_values("timestamp").drop_duplicates(subset=["timestamp"])
     if df.empty:
         return []
 
     df = _filter_trading_days(df)
+    if session == "regular" and not tf.endswith("day"):
+        df = _filter_regular_hours(df)
     if df.empty:
         return []
 
@@ -319,9 +635,13 @@ def fetch_bars_batch(
     timeframe: str = "1min",
     cache_dir: str | Path | None = None,
     manager: Any = None,
+    session: str = "extended",
 ) -> dict[str, list[dict[str, Any]]]:
     """Fetch bars for multiple symbols."""
-    return {sym: fetch_bars(sym, start, end, timeframe, cache_dir, manager) for sym in symbols}
+    return {
+        sym: fetch_bars(sym, start, end, timeframe, cache_dir, manager, session=session)
+        for sym in symbols
+    }
 
 
 def _load_latest_bars_from_cache(symbol: str, cache_dir: str | Path) -> pd.DataFrame:
@@ -357,18 +677,48 @@ def fetch_quotes(
     symbols: list[str],
     cache_dir: str | Path | None = None,
     manager: Any = None,
+    refresh_stale: bool = True,
 ) -> dict[str, dict[str, Any]]:
     """Fetch latest quote (last price, change, %%change) for each symbol."""
-    quotes: dict[str, dict[str, Any]] = {}
-    for sym in symbols:
+    max_cache_age_days = _env_int("CHARTS_QUOTES_CACHE_MAX_AGE_DAYS", 1)
+    stale_cutoff = date.today() - timedelta(days=max_cache_age_days)
+    prefetched: dict[str, dict[str, Any]] = {}
+    if manager and len(symbols) >= 8:
+        prefetched = _load_polygon_grouped_daily_quotes(symbols, manager)
+
+    def _fetch_one(sym: str) -> tuple[str, dict[str, Any] | None]:
         try:
+            key = str(sym).upper().strip()
+            if key in prefetched:
+                return key, prefetched[key]
             bars = None
             source = "cache"
+            cache_last_date: date | None = None
             if cache_dir:
                 df = _load_latest_bars_from_cache(sym, cache_dir)
                 if not df.empty and len(df) >= 2:
+                    cache_last_date = df["timestamp"].max().date()
                     bars = dataframe_to_bars(df)
-            if (not bars or len(bars) < 2) and manager:
+            cache_is_stale = cache_last_date is None or cache_last_date < stale_cutoff
+            if (not refresh_stale) and (not bars or len(bars) < 2):
+                return sym, None
+
+            if manager and ((not bars or len(bars) < 2) or (refresh_stale and cache_is_stale)):
+                today = date.today().isoformat()
+                start = (date.today() - timedelta(days=10)).isoformat()
+                for tf in ("1day", "1min"):
+                    df = load_bars_from_primary_provider(
+                        sym,
+                        start,
+                        today,
+                        manager,
+                        timeframe=tf,
+                    )
+                    if not df.empty and len(df) >= 2:
+                        bars = dataframe_to_bars(df)
+                        source = "provider"
+                        break
+            if manager and (not bars or len(bars) < 2):
                 today = date.today().isoformat()
                 start = (date.today() - timedelta(days=10)).isoformat()
                 for tf in ("1day", "1min"):
@@ -386,16 +736,36 @@ def fetch_quotes(
                         continue
 
             if not bars or len(bars) < 2:
-                continue
+                return sym, None
 
             result = derive_quote_from_bars(bars)
             if result is None:
-                continue
+                return sym, None
 
             result["source"] = source
-            quotes[sym] = result
+            return sym, result
         except Exception:
-            continue
+            return sym, None
+
+    quotes: dict[str, dict[str, Any]] = {}
+    if not symbols:
+        return quotes
+
+    # Parallelize symbol quote resolution to avoid long serial latency when
+    # watchlists contain many symbols.
+    max_workers = min(8, max(1, len(symbols)))
+    if max_workers == 1:
+        sym, payload = _fetch_one(symbols[0])
+        if payload is not None:
+            quotes[sym] = payload
+        return quotes
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = [executor.submit(_fetch_one, sym) for sym in symbols]
+        for fut in concurrent.futures.as_completed(futures):
+            sym, payload = fut.result()
+            if payload is not None:
+                quotes[sym] = payload
 
     return quotes
 

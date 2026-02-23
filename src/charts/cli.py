@@ -9,6 +9,7 @@ Commands:
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 
 
@@ -32,6 +33,9 @@ def _cmd_serve(args: argparse.Namespace) -> None:
             load_dotenv()
         except ImportError:
             pass
+        if args.cache_dir:
+            os.environ.setdefault("MARKET_DATA_CACHE", "parquet")
+            os.environ.setdefault("MARKET_DATA_CACHE_DIR", str(args.cache_dir))
         # Try to create a MarketDataManager if marketdata package available
         try:
             from marketdata import create_manager_from_env
@@ -90,7 +94,7 @@ def main() -> None:
     # -- serve --
     p_serve = subparsers.add_parser("serve", help="Start the chart server")
     p_serve.add_argument("--port", type=int, default=5555, help="Server port")
-    p_serve.add_argument("--cache-dir", default=None, help="Parquet cache directory")
+    p_serve.add_argument("--cache-dir", default="data/cache", help="Parquet cache directory")
     p_serve.add_argument("--trades", default=None, help="Backtest results JSON file")
     p_serve.add_argument("--state-dir", default=None, help="UI state directory (default: ~/.orb/chart_state/)")
     p_serve.add_argument("--no-browser", action="store_true", help="Don't auto-open browser")

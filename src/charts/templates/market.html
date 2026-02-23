@@ -302,6 +302,10 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 // ============================================================================
 var allSymbols = [];
 var quoteCache = {}; // {symbol: {price, change, changePct}}
+var barsCache = Object.create(null); // key -> {bars: [...], savedAt: epoch_ms}
+var barsCacheOrder = [];
+var BARS_CACHE_MAX_ENTRIES = 300;
+var BARS_CACHE_TTL_MS = 120000;
 var watchlists = []; // [{id, name, groups: [{id, name, symbols:[], collapsed}]}]
 var activeWLIdx = 0;
 var panels = [], activePanel = 0, currentLayout = '1';
@@ -356,6 +360,42 @@ function getCandleOpts() {
   return {upColor:ds.candleUp,downColor:ds.candleDown,borderUpColor:ds.candleUp,borderDownColor:ds.candleDown,wickUpColor:ds.candleUp,wickDownColor:ds.candleDown};
 }
 
+function _barsCacheKey(symbol, start, end, timeframe) {
+  return [String(symbol || '').toUpperCase(), start || '', end || '', timeframe || '1min'].join('|');
+}
+function _barsCacheDropFromOrder(key) {
+  var i = barsCacheOrder.indexOf(key);
+  if (i >= 0) barsCacheOrder.splice(i, 1);
+}
+function _barsCacheTouch(key) {
+  _barsCacheDropFromOrder(key);
+  barsCacheOrder.push(key);
+}
+function _barsCacheGet(key) {
+  var entry = barsCache[key];
+  if (!entry) return null;
+  if ((Date.now() - entry.savedAt) > BARS_CACHE_TTL_MS) {
+    delete barsCache[key];
+    _barsCacheDropFromOrder(key);
+    return null;
+  }
+  _barsCacheTouch(key);
+  return entry.bars;
+}
+function _barsCacheSet(key, bars) {
+  if (!bars || !bars.length) return;
+  barsCache[key] = { bars: bars, savedAt: Date.now() };
+  _barsCacheTouch(key);
+  while (barsCacheOrder.length > BARS_CACHE_MAX_ENTRIES) {
+    var oldest = barsCacheOrder.shift();
+    if (oldest) delete barsCache[oldest];
+  }
+}
+function _barsCacheDelete(key) {
+  delete barsCache[key];
+  _barsCacheDropFromOrder(key);
+}
+
 // ============================================================================
 // SESSION / CHART SETTINGS
 // ============================================================================
@@ -375,7 +415,7 @@ var SESSION_PRESETS = {
     {value:'24h', label:'24 Hours'}
   ]
 };
-function getActiveSession(){var p=panels[activePanel];return p?p.session:'extended';}
+function getActiveSession(){var p=panels[activePanel];return p?p.session:'regular';}
 function getActiveAssetClass(){var p=panels[activePanel];return p?p.assetClass:'stocks';}
 function filterBarsBySession(bars, session, timeframe){
   if(!bars||!bars.length||session==='extended'||session==='24h') return bars;
@@ -973,7 +1013,7 @@ function loadCompareData(panelIdx, compareIdx) {
   var start = document.getElementById('dt-start').value;
   var end = document.getElementById('dt-end').value;
   var tf = p.timeframe;
-  fetch('/api/bars?symbol=' + cs.symbol + '&start=' + start + '&end=' + end + '&timeframe=' + tf)
+  fetch('/api/bars?symbol=' + cs.symbol + '&start=' + start + '&end=' + end + '&timeframe=' + tf + '&session=' + encodeURIComponent(p.session || 'extended'))
     .then(function(r) { return r.ok ? r.json() : []; })
     .then(function(bars) {
       cs.bars = bars;
@@ -1004,7 +1044,7 @@ function loadAllCompareData(panelIdx) {
   var tf = p.timeframe;
   var syms = [];
   for (var i = 0; i < p.compareSymbols.length; i++) syms.push(p.compareSymbols[i].symbol);
-  fetch('/api/bars/batch?symbols=' + syms.join(',') + '&start=' + start + '&end=' + end + '&timeframe=' + tf)
+  fetch('/api/bars/batch?symbols=' + syms.join(',') + '&start=' + start + '&end=' + end + '&timeframe=' + tf + '&session=' + encodeURIComponent(p.session || 'extended'))
     .then(function(r) { return r.ok ? r.json() : {}; })
     .then(function(data) {
       var any = false;
@@ -1586,7 +1626,7 @@ function fetchQuoteFor(sym) {
   });
   if (found) { renderSymbolList(); return; }
   // Try server — cached quotes first (works without market_data manager), then live
-  fetch('/api/quotes?symbols=' + encodeURIComponent(sym))
+  fetch('/api/quotes?symbols=' + encodeURIComponent(sym) + '&refresh=1')
     .then(function(r) { return r.ok ? r.json() : {}; })
     .then(function(data) {
       if (data && data[sym]) { quoteCache[sym] = data[sym]; renderSymbolList(); return; }
@@ -1636,7 +1676,9 @@ function fetchAllQuotes() {
     .catch(function() { return fetchCachedQuotes(symbols); });
 }
 function fetchCachedQuotes(symbols) {
-  return fetch('/api/quotes' + _quoteQuery(symbols))
+  var q = _quoteQuery(symbols);
+  var joiner = q ? '&' : '?';
+  return fetch('/api/quotes' + q + joiner + 'refresh=0')
     .then(function(r) { return r.ok ? r.json() : {}; })
     .then(function(data) {
       var hasAny = false;
@@ -1676,7 +1718,7 @@ function selectSymbol(sym) {
     var count = getPanelCount(currentLayout);
     for (var i = 0; i < count; i++) { if (panels[i]) { panels[i].symbol = sym; updatePanelHeader(i); } }
     renderSymbolList(document.getElementById('sym-search').value);
-    loadAllPanels();
+    loadAllPanels(activePanel, true);
   } else {
     var p = panels[activePanel]; if (!p) return;
     p.symbol = sym;
@@ -1743,7 +1785,7 @@ function makePanel(idx) {
     ohlcv: {}, indicatorBarCollapsed: false,
     compareSymbols: [], compareMode: 'price', compareColorIdx: 0,
     chartType: 'candlestick',
-    assetClass: 'stocks', session: 'extended',
+    assetClass: 'stocks', session: 'regular',
   };
 }
 function setLayout(layout) {
@@ -1771,7 +1813,7 @@ function _restorePanelState(p, saved) {
   p.symbol = saved.symbol || null;
   p.timeframe = saved.timeframe || '5min';
   p.assetClass = saved.assetClass || 'stocks';
-  p.session = saved.session || 'extended';
+  p.session = saved.session || 'regular';
   p.chartType = saved.chartType || 'candlestick';
   // Comparison state
   if (saved.compareSymbols && saved.compareSymbols.length) {
@@ -2182,8 +2224,54 @@ function applyTimeframe(tf) {
 // DATA LOADING
 // ============================================================================
 function loadAllPanels() {
+  var prioritizeIdx = arguments.length > 0 ? arguments[0] : null;
+  var deferOthers = arguments.length > 1 ? !!arguments[1] : false;
   var count = getPanelCount(currentLayout);
-  for (var i = 0; i < count; i++) { if (panels[i] && panels[i].symbol) loadPanelData(i); }
+  var order = [];
+  if (typeof prioritizeIdx === 'number' && prioritizeIdx >= 0 && prioritizeIdx < count) {
+    order.push(prioritizeIdx);
+  }
+  for (var i = 0; i < count; i++) {
+    if (order.indexOf(i) === -1) order.push(i);
+  }
+  var stepMs = deferOthers ? 140 : 0;
+  for (var oi = 0; oi < order.length; oi++) {
+    var idx = order[oi];
+    if (!(panels[idx] && panels[idx].symbol)) continue;
+    if (stepMs > 0 && oi > 0) {
+      (function(panelIdx, delayMs) {
+        setTimeout(function() { loadPanelData(panelIdx); }, delayMs);
+      })(idx, oi * stepMs);
+    } else {
+      loadPanelData(idx);
+    }
+  }
+}
+function _applyPanelBars(idx, p, bars) {
+  p.bars = bars;
+  // Update quote cache with latest price (daily change)
+  if (p.symbol && bars.length) {
+    var lastBar = bars[bars.length - 1];
+    var pdc = _findPrevDayClose(bars, lastBar);
+    var chg = +(lastBar.close - pdc).toFixed(4);
+    quoteCache[p.symbol] = {price:lastBar.close, change:chg, changePct:pdc ? +((chg/pdc)*100).toFixed(2) : 0};
+    renderSymbolList();
+  }
+  // Clear stale comparison bars before rendering (prevents flash of old-timeframe data)
+  if (p.compareSymbols && p.compareSymbols.length > 0) {
+    for (var ci = 0; ci < p.compareSymbols.length; ci++) {
+      p.compareSymbols[ci].bars = null;
+      p.compareSymbols[ci].series = null;
+    }
+  }
+  renderPanelChart(idx);
+  renderPanelOscPanels(idx);
+  // Load comparison symbol data if any
+  if (p.compareSymbols && p.compareSymbols.length > 0) loadAllCompareData(idx);
+  if (currentLayout !== '1') {
+    if (SYNC.time) setupTimeSync();
+    if (SYNC.crosshair) setupMultiPanelCrosshairSync();
+  }
 }
 function loadPanelData(idx) {
   var p = panels[idx]; if (!p || !p.symbol) return;
@@ -2191,10 +2279,18 @@ function loadPanelData(idx) {
   var end = document.getElementById('dt-end').value;
   var tf = p.timeframe;
   if (!start || !end) return;
-  showPanelLoading(idx, true);
   if (p.loadAbort) p.loadAbort.abort();
+  var cacheKey = _barsCacheKey(p.symbol, start, end, tf);
+  var cachedBars = _barsCacheGet(cacheKey);
+  if (cachedBars && cachedBars.length) {
+    p.loadAbort = null;
+    showPanelLoading(idx, false);
+    _applyPanelBars(idx, p, cachedBars);
+    return;
+  }
+  showPanelLoading(idx, true);
   var ctrl = new AbortController(); p.loadAbort = ctrl;
-  fetch('/api/bars?symbol=' + p.symbol + '&start=' + start + '&end=' + end + '&timeframe=' + tf, {signal: ctrl.signal})
+  fetch('/api/bars?symbol=' + p.symbol + '&start=' + start + '&end=' + end + '&timeframe=' + tf + '&session=' + encodeURIComponent(p.session || 'extended'), {signal: ctrl.signal})
     .then(function(r) {
       if (!r.ok) return [];
       return r.json().catch(function() { return []; });
@@ -2206,34 +2302,13 @@ function loadPanelData(idx) {
         var container = p.el.querySelector('.panel-chart');
         container.innerHTML = '<div class="panel-empty">No data for ' + p.symbol + '</div><div class="panel-loading"><div class="spinner"></div></div>';
         p.bars = null;
+        _barsCacheDelete(cacheKey);
         // Try to fetch a quote even without bar data
         fetchQuoteFor(p.symbol);
         return;
       }
-      p.bars = bars;
-      // Update quote cache with latest price (daily change)
-      if (p.symbol && bars.length) {
-        var lastBar = bars[bars.length - 1];
-        var pdc = _findPrevDayClose(bars, lastBar);
-        var chg = +(lastBar.close - pdc).toFixed(4);
-        quoteCache[p.symbol] = {price:lastBar.close, change:chg, changePct:pdc ? +((chg/pdc)*100).toFixed(2) : 0};
-        renderSymbolList();
-      }
-      // Clear stale comparison bars before rendering (prevents flash of old-timeframe data)
-      if (p.compareSymbols && p.compareSymbols.length > 0) {
-        for (var ci = 0; ci < p.compareSymbols.length; ci++) {
-          p.compareSymbols[ci].bars = null;
-          p.compareSymbols[ci].series = null;
-        }
-      }
-      renderPanelChart(idx);
-      renderPanelOscPanels(idx);
-      // Load comparison symbol data if any
-      if (p.compareSymbols && p.compareSymbols.length > 0) loadAllCompareData(idx);
-      if (currentLayout !== '1') {
-        if (SYNC.time) setupTimeSync();
-        if (SYNC.crosshair) setupMultiPanelCrosshairSync();
-      }
+      _barsCacheSet(cacheKey, bars);
+      _applyPanelBars(idx, p, bars);
     })
     .catch(function(err) {
       if (err.name === 'AbortError') return;

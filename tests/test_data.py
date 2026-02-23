@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import calendar as cal_mod
 from datetime import date, datetime
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pandas as pd
 import pytest
@@ -296,6 +296,128 @@ class TestFetchBars:
         )
         assert len(result) == 2
 
+    def test_gap_backfill_requests_missing_trading_days(self):
+        cache_df = pd.concat(
+            [
+                _make_1min_df("2024-01-17 10:00", 1),
+                _make_1min_df("2024-01-19 10:00", 1),
+            ],
+            ignore_index=True,
+        )
+
+        def _manager_side_effect(symbol, start, end, manager):
+            if (symbol, start, end) == ("AAPL", "2024-01-18", "2024-01-18"):
+                return _make_1min_df("2024-01-18 10:00", 1)
+            if (symbol, start, end) == ("AAPL", "2024-01-22", "2024-01-22"):
+                return _make_1min_df("2024-01-22 10:00", 1)
+            return pd.DataFrame()
+
+        with patch("charts.server.data.load_bars_from_cache", return_value=cache_df):
+            with patch("charts.server.data.load_bars_from_manager", side_effect=_manager_side_effect) as mock_mgr:
+                bars = fetch_bars(
+                    "AAPL",
+                    "2024-01-17",
+                    "2024-01-22",
+                    cache_dir="dummy",
+                    manager=object(),
+                )
+
+        assert len(bars) == 4
+        calls = [(c.args[0], c.args[1], c.args[2]) for c in mock_mgr.call_args_list]
+        assert ("AAPL", "2024-01-18", "2024-01-18") in calls
+        assert ("AAPL", "2024-01-22", "2024-01-22") in calls
+
+    def test_near_today_tail_refresh_uses_provider(self):
+        cache_df = _make_1min_df("2024-01-18 10:00", 1)
+        cache_df["close"] = [100.0]
+
+        provider = MagicMock()
+        provider.get_bars.return_value = [
+            {
+                "timestamp": datetime(2024, 1, 18, 10, 0),
+                "open": 100.0,
+                "high": 101.0,
+                "low": 99.0,
+                "close": 100.0,
+                "volume": 1000,
+            },
+            {
+                "timestamp": datetime(2024, 1, 18, 15, 59),
+                "open": 109.0,
+                "high": 111.0,
+                "low": 108.5,
+                "close": 110.0,
+                "volume": 2000,
+            },
+        ]
+
+        manager = MagicMock()
+        manager.providers = [provider]
+
+        with patch("charts.server.data.load_bars_from_cache", return_value=cache_df):
+            with patch("charts.server.data.date") as mock_date:
+                mock_date.today.return_value = date(2024, 1, 18)
+                mock_date.fromisoformat.side_effect = lambda s: date.fromisoformat(s)
+                bars = fetch_bars(
+                    "AAPL",
+                    "2024-01-18",
+                    "2024-01-18",
+                    cache_dir="dummy",
+                    manager=manager,
+                )
+
+        assert provider.get_bars.called
+        assert bars
+        assert bars[-1]["close"] == 110.0
+
+    def test_large_range_uses_fast_edge_backfill(self, monkeypatch):
+        cache_df = _make_1min_df("2024-01-10 10:00", 1)
+        manager = MagicMock()
+
+        calls: list[tuple[str, str, str]] = []
+
+        def _mgr_side_effect(symbol, start, end, _manager):
+            calls.append((symbol, start, end))
+            return pd.DataFrame()
+
+        monkeypatch.setenv("CHARTS_DEEP_GAP_SCAN_DAYS", "7")
+        with patch("charts.server.data.load_bars_from_cache", return_value=cache_df):
+            with patch("charts.server.data.load_bars_from_manager", side_effect=_mgr_side_effect):
+                with patch("charts.server.data.load_bars_from_primary_provider", return_value=pd.DataFrame()):
+                    _ = fetch_bars(
+                        "AAPL",
+                        "2024-01-01",
+                        "2024-03-01",
+                        cache_dir="dummy",
+                        manager=manager,
+                    )
+
+        assert ("AAPL", "2024-01-01", "2024-01-09") in calls
+        assert ("AAPL", "2024-01-11", "2024-03-01") in calls
+        assert len(calls) <= 3
+
+    def test_non_1min_uses_native_provider_timeframe(self):
+        native_df = pd.DataFrame(
+            {
+                "timestamp": [pd.Timestamp("2024-01-17 10:00"), pd.Timestamp("2024-01-17 10:05")],
+                "open": [100.0, 101.0],
+                "high": [101.0, 102.0],
+                "low": [99.5, 100.5],
+                "close": [100.5, 101.5],
+                "volume": [1000, 1200],
+            }
+        )
+        with patch("charts.server.data.load_bars_from_primary_provider", return_value=native_df) as mock_provider:
+            bars = fetch_bars(
+                "NVDA",
+                "2024-01-17",
+                "2024-01-17",
+                timeframe="5min",
+                manager=object(),
+            )
+        assert len(bars) == 2
+        assert mock_provider.call_args.kwargs.get("timeframe") == "5min"
+
 
 # ---------------------------------------------------------------------------
 # fetch_quotes
@@ -349,6 +471,146 @@ class TestFetchQuotes:
         result = fetch_quotes(["AAPL"], cache_dir=tmp_path, manager=manager)
         assert "AAPL" in result
         assert result["AAPL"]["source"] == "provider"
+
+    def test_falls_back_to_primary_provider_for_quote(self):
+        provider = MagicMock()
+        provider.get_bars.return_value = [
+            {
+                "timestamp": datetime(2024, 1, 17, 0, 0),
+                "open": 100.0,
+                "high": 101.0,
+                "low": 99.0,
+                "close": 100.0,
+                "volume": 500,
+            },
+            {
+                "timestamp": datetime(2024, 1, 18, 0, 0),
+                "open": 101.0,
+                "high": 103.0,
+                "low": 100.5,
+                "close": 102.0,
+                "volume": 700,
+            },
+        ]
+
+        manager = MagicMock()
+        manager.providers = [provider]
+        manager.get_bars.side_effect = RuntimeError("should not be required")
+
+        result = fetch_quotes(["AAPL"], manager=manager)
+        assert "AAPL" in result
+        assert result["AAPL"]["price"] == 102.0
+        assert result["AAPL"]["source"] == "provider"
+
+    def test_stale_cache_prefers_provider(self, tmp_path):
+        sym_dir = tmp_path / "AAPL"
+        sym_dir.mkdir()
+        stale = pd.concat(
+            [
+                _make_1min_df("2024-01-17 10:00", 1),
+                _make_1min_df("2024-01-17 10:01", 1),
+            ],
+            ignore_index=True,
+        )
+        stale.loc[0, "close"] = 100.0
+        stale.loc[1, "close"] = 101.0
+        stale.to_parquet(sym_dir / "1min_2024-01-17_2024-01-17.parquet")
+
+        provider = MagicMock()
+        provider.get_bars.return_value = [
+            {
+                "timestamp": datetime(2026, 2, 20, 0, 0),
+                "open": 263.0,
+                "high": 264.0,
+                "low": 262.5,
+                "close": 263.5,
+                "volume": 1000,
+            },
+            {
+                "timestamp": datetime(2026, 2, 21, 0, 0),
+                "open": 264.0,
+                "high": 265.0,
+                "low": 263.8,
+                "close": 264.4,
+                "volume": 1200,
+            },
+        ]
+
+        manager = MagicMock()
+        manager.providers = [provider]
+
+        result = fetch_quotes(["AAPL"], cache_dir=tmp_path, manager=manager)
+        assert "AAPL" in result
+        assert result["AAPL"]["source"] == "provider"
+        assert result["AAPL"]["price"] == 264.4
+
+    def test_stale_cache_refresh_disabled_keeps_cache(self, tmp_path):
+        sym_dir = tmp_path / "AAPL"
+        sym_dir.mkdir()
+        stale = pd.concat(
+            [
+                _make_1min_df("2024-01-17 10:00", 1),
+                _make_1min_df("2024-01-17 10:01", 1),
+            ],
+            ignore_index=True,
+        )
+        stale.loc[0, "close"] = 100.0
+        stale.loc[1, "close"] = 101.0
+        stale.to_parquet(sym_dir / "1min_2024-01-17_2024-01-17.parquet")
+
+        provider = MagicMock()
+        provider.get_bars.return_value = [
+            {
+                "timestamp": datetime(2026, 2, 21, 0, 0),
+                "open": 264.0,
+                "high": 265.0,
+                "low": 263.8,
+                "close": 264.4,
+                "volume": 1200,
+            },
+            {
+                "timestamp": datetime(2026, 2, 22, 0, 0),
+                "open": 265.0,
+                "high": 266.0,
+                "low": 264.5,
+                "close": 265.2,
+                "volume": 900,
+            },
+        ]
+        manager = MagicMock()
+        manager.providers = [provider]
+
+        result = fetch_quotes(["AAPL"], cache_dir=tmp_path, manager=manager, refresh_stale=False)
+        assert "AAPL" in result
+        assert result["AAPL"]["source"] == "cache"
+        assert result["AAPL"]["price"] == 101.0
+
+    def test_refresh_disabled_missing_cache_skips_provider(self, tmp_path):
+        provider = MagicMock()
+        provider.get_bars.return_value = [
+            {
+                "timestamp": datetime(2026, 2, 21, 0, 0),
+                "open": 10.0,
+                "high": 11.0,
+                "low": 9.0,
+                "close": 10.5,
+                "volume": 100,
+            },
+            {
+                "timestamp": datetime(2026, 2, 22, 0, 0),
+                "open": 10.5,
+                "high": 11.5,
+                "low": 10.1,
+                "close": 11.0,
+                "volume": 80,
+            },
+        ]
+        manager = MagicMock()
+        manager.providers = [provider]
+
+        result = fetch_quotes(["ZZZZ"], cache_dir=tmp_path, manager=manager, refresh_stale=False)
+        assert result == {}
+        assert not provider.get_bars.called
 
 
 # ---------------------------------------------------------------------------

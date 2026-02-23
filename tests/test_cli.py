@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import argparse
 import json
+import os
 import sys
+import types
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
@@ -69,3 +72,64 @@ class TestCLIParsing:
         html = output.read_text(encoding="utf-8")
         assert "T001" in html
         assert "LightweightCharts" in html
+
+    def test_serve_default_cache_dir(self):
+        from charts.cli import main
+
+        captured = {}
+
+        def _fake_cmd(args):
+            captured["cache_dir"] = args.cache_dir
+
+        with patch("charts.cli._cmd_serve", side_effect=_fake_cmd):
+            with patch("sys.argv", ["charts", "serve"]):
+                main()
+
+        assert captured["cache_dir"] == "data/cache"
+
+    def test_cmd_serve_sets_cache_env_defaults(self, monkeypatch):
+        from charts.cli import _cmd_serve
+
+        captured = {}
+
+        class _DummyServer:
+            def __init__(self, **kwargs):
+                captured.update(kwargs)
+
+            def serve(self):
+                captured["served"] = True
+
+        app_mod = types.ModuleType("charts.server.app")
+        app_mod.ChartServer = _DummyServer
+
+        serialization_mod = types.ModuleType("charts.models.serialization")
+        serialization_mod.load_trades_json = lambda _path: ([], None)
+
+        marketdata_mod = types.ModuleType("marketdata")
+        marketdata_mod.create_manager_from_env = lambda: types.SimpleNamespace(providers=[])
+
+        monkeypatch.delenv("MARKET_DATA_CACHE", raising=False)
+        monkeypatch.delenv("MARKET_DATA_CACHE_DIR", raising=False)
+
+        with patch.dict(
+            sys.modules,
+            {
+                "charts.server.app": app_mod,
+                "charts.models.serialization": serialization_mod,
+                "marketdata": marketdata_mod,
+            },
+        ):
+            _cmd_serve(
+                argparse.Namespace(
+                    trades=None,
+                    cache_dir="data/cache",
+                    state_dir=None,
+                    port=5555,
+                    no_browser=True,
+                )
+            )
+
+        assert os.environ["MARKET_DATA_CACHE"] == "parquet"
+        assert os.environ["MARKET_DATA_CACHE_DIR"] == "data/cache"
+        assert captured["cache_dir"] == "data/cache"
+        assert captured["served"] is True

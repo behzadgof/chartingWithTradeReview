@@ -146,19 +146,27 @@ class ChartRequestHandler(http.server.BaseHTTPRequestHandler):
 
     def _send_json(self, data: object, status: int = 200) -> None:
         body = json.dumps(data).encode("utf-8")
-        self.send_response(status)
-        self.send_header("Content-Type", "application/json")
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
+        try:
+            self.send_response(status)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError, OSError):
+            # Client disconnected mid-response; safe to ignore.
+            return
 
     def _send_html(self, html: str) -> None:
         body = html.encode("utf-8")
-        self.send_response(200)
-        self.send_header("Content-Type", "text/html; charset=utf-8")
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
+        try:
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError, OSError):
+            # Client disconnected mid-response; safe to ignore.
+            return
 
     # -- Market data -----------------------------------------------------------
 
@@ -171,6 +179,7 @@ class ChartRequestHandler(http.server.BaseHTTPRequestHandler):
         start = (params.get("start") or [None])[0]
         end = (params.get("end") or [None])[0]
         timeframe = (params.get("timeframe") or ["1min"])[0]
+        session = (params.get("session") or ["extended"])[0]
 
         if not symbol or not start or not end:
             self._send_json({"error": "Missing symbol, start, or end"}, 400)
@@ -181,6 +190,7 @@ class ChartRequestHandler(http.server.BaseHTTPRequestHandler):
                 symbol, start, end, timeframe,
                 cache_dir=self._cfg("cache_dir"),
                 manager=self._cfg("market_data"),
+                session=session,
             )
         except Exception:
             bars = []
@@ -191,6 +201,7 @@ class ChartRequestHandler(http.server.BaseHTTPRequestHandler):
         start = (params.get("start") or [None])[0]
         end = (params.get("end") or [None])[0]
         timeframe = (params.get("timeframe") or ["1min"])[0]
+        session = (params.get("session") or ["extended"])[0]
 
         if not syms_raw or not start or not end:
             self._send_json(
@@ -204,6 +215,7 @@ class ChartRequestHandler(http.server.BaseHTTPRequestHandler):
                 symbols, start, end, timeframe,
                 cache_dir=self._cfg("cache_dir"),
                 manager=self._cfg("market_data"),
+                session=session,
             )
         except Exception:
             result = {s: [] for s in symbols}
@@ -213,6 +225,8 @@ class ChartRequestHandler(http.server.BaseHTTPRequestHandler):
         try:
             params = params or {}
             syms_raw = (params.get("symbols") or [None])[0]
+            refresh_raw = (params.get("refresh") or ["0"])[0]
+            refresh = str(refresh_raw).strip().lower() in {"1", "true", "yes", "y", "on"}
             if syms_raw:
                 symbols = [s.strip().upper() for s in syms_raw.split(",") if s.strip()]
             else:
@@ -221,6 +235,7 @@ class ChartRequestHandler(http.server.BaseHTTPRequestHandler):
                 symbols,
                 cache_dir=self._cfg("cache_dir"),
                 manager=self._cfg("market_data"),
+                refresh_stale=refresh,
             )
             self._send_json(quotes)
         except Exception:
