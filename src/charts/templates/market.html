@@ -1678,7 +1678,7 @@ function fetchAllQuotes() {
 function fetchCachedQuotes(symbols) {
   var q = _quoteQuery(symbols);
   var joiner = q ? '&' : '?';
-  return fetch('/api/quotes' + q + joiner + 'refresh=0')
+  return fetch('/api/quotes' + q + joiner + 'refresh=1')
     .then(function(r) { return r.ok ? r.json() : {}; })
     .then(function(data) {
       var hasAny = false;
@@ -1732,10 +1732,7 @@ function selectSymbol(sym) {
 // ============================================================================
 // PERIOD BUTTONS
 // ============================================================================
-function setPeriod(p) {
-  activePeriod = p;
-  document.querySelectorAll('.period-btn').forEach(function(b) { b.classList.toggle('active', b.textContent === p); });
-  var today = new Date();
+function _resolvePeriodWindow(p, today) {
   var end = fmtDate(today);
   var start, tf;
   switch(p) {
@@ -1749,10 +1746,17 @@ function setPeriod(p) {
     case 'ALL': start = '2021-01-01'; tf = '1day'; break;
     default:    start = fmtDate(addDays(today, -7)); tf = '5min';
   }
-  document.getElementById('dt-start').value = start;
-  document.getElementById('dt-end').value = end;
-  if (panels[activePanel]) panels[activePanel].timeframe = tf;
-  document.getElementById('tf-select').value = tf;
+  return {start: start, end: end, tf: tf};
+}
+
+function setPeriod(p) {
+  activePeriod = p;
+  document.querySelectorAll('.period-btn').forEach(function(b) { b.classList.toggle('active', b.textContent === p); });
+  var win = _resolvePeriodWindow(p, new Date());
+  document.getElementById('dt-start').value = win.start;
+  document.getElementById('dt-end').value = win.end;
+  if (panels[activePanel]) panels[activePanel].timeframe = win.tf;
+  document.getElementById('tf-select').value = win.tf;
   updatePanelHeader(activePanel);
   saveGlobalSettings();
   loadAllPanels();
@@ -3096,6 +3100,12 @@ function _doInit() {
   } else {
     document.getElementById('dt-end').value = fmtDate(today);
     document.getElementById('dt-start').value = fmtDate(addDays(today, -7));
+  }
+  // If a relative period is active, always anchor it to today on startup.
+  if (activePeriod) {
+    var initWin = _resolvePeriodWindow(activePeriod, today);
+    document.getElementById('dt-start').value = initWin.start;
+    document.getElementById('dt-end').value = initWin.end;
   }
   // Restore active period button highlight
   if (activePeriod) { document.querySelectorAll('.period-btn').forEach(function(b) { b.classList.toggle('active', b.textContent === activePeriod); }); }
