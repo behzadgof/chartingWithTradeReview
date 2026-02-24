@@ -97,6 +97,49 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 #symbol-list.fs-large .wl-group-header { font-size: 13px; }
 .wl-add-sym input:focus { border-color: #58a6ff; }
 .wl-add-sym input::placeholder { color: #484f58; }
+.chart-side-controls {
+  position: absolute;
+  left: 3px;
+  bottom: 8px;
+  z-index: 38;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.chart-side-controls.active .csc-icon-btn { border-color: #58a6ff; }
+.csc-icon-btn {
+  width: 24px;
+  height: 24px;
+  border: 1px solid #30363d;
+  border-radius: 4px;
+  background: rgba(17,22,29,0.94);
+  color: #c9d1d9;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+.csc-icon-btn:hover:not(:disabled) { background: #30363d; border-color: #484f58; }
+.csc-icon-btn:disabled { color: #6e7681; cursor: not-allowed; opacity: 0.85; }
+.csc-menu {
+  position: fixed;
+  z-index: 420;
+  background: #1c2128;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.5);
+  min-width: 130px;
+  padding: 4px;
+}
+.csc-menu-item {
+  padding: 6px 10px;
+  border-radius: 4px;
+  color: #c9d1d9;
+  font-size: 12px;
+  cursor: pointer;
+}
+.csc-menu-item:hover { background: #21262d; }
 
 /* Main content */
 #main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
@@ -143,6 +186,8 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 #panels-grid.layout-3r { grid-template: 1fr 1fr / 1fr 1fr; }
 #panels-grid.layout-3r .chart-panel:nth-child(3) { grid-row: 1 / 3; }
 #panels-grid.layout-4 { grid-template: 1fr 1fr / 1fr 1fr; }
+#panels-grid.panel-expanded .chart-panel { display: none; }
+#panels-grid.panel-expanded .chart-panel.expanded-panel { display: flex; grid-column: 1 / -1; grid-row: 1 / -1; }
 .chart-panel { display: flex; flex-direction: column; background: #0d1117; border: 2px solid #21262d; overflow: hidden; position: relative; min-height: 0; min-width: 0; }
 .chart-panel.active { border-color: #58a6ff; }
 .chart-panel .panel-symbol { font-weight: 600; color: #e6edf3; min-width: 30px; }
@@ -173,9 +218,6 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 .tf-input { width: 62px; background: #21262d; color: #c9d1d9; border: 1px solid #30363d; border-radius: 4px; padding: 3px 4px; font-size: 11px; outline: none; cursor: pointer; }
 .tf-input:focus { border-color: #58a6ff; }
 .tf-custom { cursor: text; }
-/* Chart settings button */
-.chart-settings-btn { background: #21262d; border: 1px solid #30363d; border-radius: 4px; padding: 2px 6px; cursor: pointer; color: #8b949e; font-size: 11px; transition: all 0.1s; display: flex; align-items: center; gap: 4px; }
-.chart-settings-btn:hover { background: #30363d; color: #c9d1d9; }
 /* Chart settings popup */
 .cs-popup { position: fixed; background: #1c2128; border: 1px solid #30363d; border-radius: 8px; padding: 14px 16px; z-index: 300; box-shadow: 0 4px 16px rgba(0,0,0,0.5); font-size: 12px; min-width: 240px; }
 .cs-popup .cs-title { font-size: 10px; text-transform: uppercase; color: #8b949e; letter-spacing: 0.5px; margin-bottom: 10px; }
@@ -264,7 +306,6 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
     <button class="sync-gear-btn" onclick="openSyncSettings(event)" title="Panel Sync Settings">&#9881;</button>
     <button class="display-settings-btn" onclick="openDisplaySettings(event)" title="Display Settings"><svg width="14" height="14" viewBox="0 0 16 16"><path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z" fill="currentColor"/><path d="M2 2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V2zm2-1a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H4z" fill="currentColor"/></svg> Display</button>
     <button class="cloud-sync-btn" onclick="openCloudSyncSettings(event)" title="Cloud Sync"><svg width="14" height="14" viewBox="0 0 16 16"><path fill="currentColor" d="M4.406 3.342A5.53 5.53 0 018.027 2c2.137 0 3.987 1.264 4.84 3.088A4.001 4.001 0 0112 13H4.5a3.5 3.5 0 01-.594-6.953 5.56 5.56 0 01.5-2.705zM8.027 3a4.53 4.53 0 00-3.07 1.19 4.56 4.56 0 00-1.28 2.244l-.112.459-.468.06A2.5 2.5 0 004.5 12H12a3 3 0 00.405-5.973l-.473-.066-.084-.473A4.53 4.53 0 008.027 3z"/></svg> Sync</button>
-    <button class="chart-settings-btn" onclick="openChartSettings(event)" title="Chart Settings"><svg width="14" height="14" viewBox="0 0 16 16"><path fill="currentColor" d="M7.068.727c.243-.97 1.62-.97 1.864 0l.071.286a.96.96 0 001.622.434l.205-.211c.695-.719 1.888-.03 1.613.929l-.079.275a.96.96 0 001.17 1.17l.275-.079c.96-.275 1.648.918.929 1.613l-.211.205a.96.96 0 00.434 1.622l.286.071c.97.243.97 1.62 0 1.864l-.286.071a.96.96 0 00-.434 1.622l.211.205c.719.695.03 1.888-.929 1.613l-.275-.079a.96.96 0 00-1.17 1.17l.079.275c.275.96-.918 1.648-1.613.929l-.205-.211a.96.96 0 00-1.622.434l-.071.286c-.243.97-1.62.97-1.864 0l-.071-.286a.96.96 0 00-1.622-.434l-.205.211c-.695.719-1.888.03-1.613-.929l.079-.275a.96.96 0 00-1.17-1.17l-.275.079c-.96.275-1.648-.918-.929-1.613l.211-.205a.96.96 0 00-.434-1.622l-.286-.071c-.97-.243-.97-1.62 0-1.864l.286-.071a.96.96 0 00.434-1.622l-.211-.205c-.719-.695-.03-1.888.929-1.613l.275.079a.96.96 0 001.17-1.17l-.079-.275c-.275-.96.918-1.648 1.613-.929l.205.211a.96.96 0 001.622-.434l.071-.286zM8 11a3 3 0 100-6 3 3 0 000 6z"/></svg> Session</button>
     <div class="sep"></div>
     <span id="tf-wrap" class="tf-wrap">
       <select id="tf-select" class="tf-input" onchange="onTFSelectChange()">
@@ -309,6 +350,8 @@ var BARS_CACHE_TTL_MS = 120000;
 var watchlists = []; // [{id, name, groups: [{id, name, symbols:[], collapsed}]}]
 var activeWLIdx = 0;
 var panels = [], activePanel = 0, currentLayout = '1';
+var expandedPanelIdx = null;
+var expandedPanelViewState = null;
 var allLayouts = [], activeLayoutId = null; // multi-layout support
 var syncing = false, crosshairSyncing = false;
 var avwapPicking = null; // {panelIdx, avwapIdx} when picking anchor point
@@ -435,7 +478,7 @@ function filterBarsBySession(bars, session, timeframe){
 }
 var _csPopup=null;
 function openChartSettings(e){
-  e.stopPropagation();
+  if(e&&e.stopPropagation) e.stopPropagation();
   if(_csPopup){closeChartSettings();return;}
   var popup=document.createElement('div');popup.className='cs-popup';popup.id='cs-popup';
   var ac=getActiveAssetClass(), sess=getActiveSession();
@@ -450,9 +493,17 @@ function openChartSettings(e){
   html+='<div class="cs-hint">Filters bars for the active panel only</div>';
   popup.innerHTML=html;
   document.body.appendChild(popup);
-  var rect=e.target.closest('button').getBoundingClientRect();
-  popup.style.left=Math.min(rect.left,window.innerWidth-260)+'px';
-  popup.style.top=(rect.bottom+4)+'px';
+  var anchor=(e&&e.target&&e.target.closest)?e.target.closest('button'):null;
+  if(!anchor && e && e.target && e.target.getBoundingClientRect) anchor=e.target;
+  var rect=anchor?anchor.getBoundingClientRect():{left:8,right:8,top:8,bottom:8};
+  var pad=4;
+  var popupW=popup.offsetWidth||260;
+  var popupH=popup.offsetHeight||120;
+  var left=Math.max(pad, Math.min(rect.left, window.innerWidth-popupW-pad));
+  var top=rect.bottom+pad;
+  if(top+popupH>window.innerHeight-pad) top=Math.max(pad, rect.top-popupH-pad);
+  popup.style.left=left+'px';
+  popup.style.top=top+'px';
   _csPopup=popup;
   setTimeout(function(){document.addEventListener('mousedown',_csOutsideClick);},50);
 }
@@ -468,12 +519,97 @@ function onAssetClassChange(v){
   p.session=presets[0].value;
   var sel=document.getElementById('cs-session');
   if(sel){sel.innerHTML='';presets.forEach(function(pr){var o=document.createElement('option');o.value=pr.value;o.textContent=pr.label;sel.appendChild(o);});sel.value=p.session;}
-  saveLayout();rerenderPanel(activePanel);
+  saveLayout();rerenderPanel(activePanel);updateSidebarPanelControls();
 }
 function onSessionChange(v){
   var p=panels[activePanel];if(!p)return;
   p.session=v;
-  saveLayout();rerenderPanel(activePanel);
+  saveLayout();rerenderPanel(activePanel);updateSidebarPanelControls();
+}
+var _panelOptionsMenu = null;
+var _panelOptionsAnchor = null;
+function closePanelOptionsMenu() {
+  if (_panelOptionsMenu && _panelOptionsMenu.parentNode) _panelOptionsMenu.parentNode.removeChild(_panelOptionsMenu);
+  _panelOptionsMenu = null;
+  _panelOptionsAnchor = null;
+  document.removeEventListener('mousedown', _panelOptionsOutsideClick);
+}
+function _panelOptionsOutsideClick(e) {
+  if (_panelOptionsMenu && !_panelOptionsMenu.contains(e.target) && (!_panelOptionsAnchor || !_panelOptionsAnchor.contains(e.target))) {
+    closePanelOptionsMenu();
+  }
+}
+function openPanelOptionsMenu(evt, idx) {
+  if (evt && evt.stopPropagation) evt.stopPropagation();
+  if (activePanel !== idx) setActivePanel(idx);
+  if (_panelOptionsMenu) closePanelOptionsMenu();
+  var anchor = evt && evt.target ? (evt.target.closest('button') || evt.target) : null;
+  if (!anchor) return;
+  var menu = document.createElement('div');
+  menu.className = 'csc-menu';
+  menu.innerHTML = '<div class="csc-menu-item" onclick="openPanelSessionFromMenu('+idx+')">Session</div>';
+  document.body.appendChild(menu);
+  var r = anchor.getBoundingClientRect();
+  var left = r.right + 6;
+  var top = r.top;
+  var w = menu.offsetWidth || 130;
+  var h = menu.offsetHeight || 40;
+  if (left + w > window.innerWidth - 4) left = Math.max(4, r.left - w - 6);
+  if (top + h > window.innerHeight - 4) top = Math.max(4, window.innerHeight - h - 4);
+  menu.style.left = left + 'px';
+  menu.style.top = top + 'px';
+  _panelOptionsMenu = menu;
+  _panelOptionsAnchor = anchor;
+  setTimeout(function(){ document.addEventListener('mousedown', _panelOptionsOutsideClick); }, 0);
+}
+function openPanelSessionFromMenu(idx) {
+  var anchor = _panelOptionsAnchor;
+  closePanelOptionsMenu();
+  if (activePanel !== idx) setActivePanel(idx);
+  if (!anchor) return;
+  openChartSettings({ stopPropagation: function(){}, target: anchor });
+}
+function renderPanelSideControls(panelIdx){
+  var p=panels[panelIdx]; if(!p||!p.el) return;
+  var host=p.el.querySelector('.panel-chart-area'); if(!host) return;
+  var old=host.querySelector('.chart-side-controls');
+  if(old&&old.parentNode) old.parentNode.removeChild(old);
+  var box=document.createElement('div');
+  box.className='chart-side-controls';
+  box.id='chart-side-controls-'+panelIdx;
+  box.innerHTML=''
+    +'<button class="csc-icon-btn" id="csc-gear-'+panelIdx+'" onclick="openPanelOptionsMenu(event,'+panelIdx+')" title="Panel options"><svg width="13" height="13" viewBox="0 0 16 16"><path fill="currentColor" d="M7.068.727c.243-.97 1.62-.97 1.864 0l.071.286a.96.96 0 001.622.434l.205-.211c.695-.719 1.888-.03 1.613.929l-.079.275a.96.96 0 001.17 1.17l.275-.079c.96-.275 1.648.918.929 1.613l-.211.205a.96.96 0 00.434 1.622l.286.071c.97.243.97 1.62 0 1.864l-.286.071a.96.96 0 00-.434 1.622l.211.205c.719.695.03 1.888-.929 1.613l-.275-.079a.96.96 0 00-1.17 1.17l.079.275c.275.96-.918 1.648-1.613.929l-.205-.211a.96.96 0 00-1.622.434l-.071.286c-.243.97-1.62.97-1.864 0l-.071-.286a.96.96 0 00-1.622-.434l-.205.211c-.695.719-1.888.03-1.613-.929l.079-.275a.96.96 0 00-1.17-1.17l-.275.079c-.96.275-1.648-.918-.929-1.613l.211-.205a.96.96 0 00-.434-1.622l-.286-.071c-.97-.243-.97-1.62 0-1.864l.286-.071a.96.96 0 00.434-1.622l-.211-.205c-.719-.695-.03-1.888.929-1.613l.275.079a.96.96 0 001.17-1.17l-.079-.275c-.275-.96.918-1.648 1.613-.929l.205.211a.96.96 0 001.622-.434l.071-.286zM8 11a3 3 0 100-6 3 3 0 000 6z"/></svg></button>'
+    +'<button class="csc-icon-btn" id="csc-expand-'+panelIdx+'" onclick="toggleActivePanelExpand('+panelIdx+')" title="Expand / Restore"><svg width="13" height="13" viewBox="0 0 16 16"><path fill="currentColor" d="M1 6V1h5v1H2v4H1zm9-5h5v5h-1V2h-4V1zM2 10v4h4v1H1v-5h1zm13 0v5h-5v-1h4v-4h1z"/></svg></button>';
+  host.appendChild(box);
+}
+function updateSidebarPanelControls(){
+  for(var i=0;i<panels.length;i++){
+    var box=document.getElementById('chart-side-controls-'+i);
+    if(!box) continue;
+    var p=panels[i];
+    if(!p) continue;
+    box.classList.toggle('active', i===activePanel);
+    var expandBtn=document.getElementById('csc-expand-'+i);
+    if(!expandBtn) continue;
+    var canExpand=_isExpandableGridLayout(currentLayout);
+    expandBtn.disabled=!canExpand;
+    if(!canExpand){
+      expandBtn.title='Expand is available only in 2x2 layout';
+      expandBtn.innerHTML='<svg width="13" height="13" viewBox="0 0 16 16"><path fill="currentColor" d="M1 6V1h5v1H2v4H1zm9-5h5v5h-1V2h-4V1zM2 10v4h4v1H1v-5h1zm13 0v5h-5v-1h4v-4h1z"/></svg>';
+    }else if(expandedPanelIdx===i){
+      expandBtn.title='Restore grid';
+      expandBtn.innerHTML='<svg width="13" height="13" viewBox="0 0 16 16"><path fill="currentColor" d="M2 2h5v5H2V2zm1 1v3h3V3H3zm7-1h5v5h-5V2zm1 1v3h3V3h-3zM2 9h5v5H2V9zm1 1v3h3v-3H3zm7-1h5v5h-5V9zm1 1v3h3v-3h-3z"/></svg>';
+    }else{
+      expandBtn.title='Expand panel';
+      expandBtn.innerHTML='<svg width="13" height="13" viewBox="0 0 16 16"><path fill="currentColor" d="M1 6V1h5v1H2v4H1zm9-5h5v5h-1V2h-4V1zM2 10v4h4v1H1v-5h1zm13 0v5h-5v-1h4v-4h1z"/></svg>';
+    }
+  }
+}
+function toggleActivePanelExpand(idx){
+  if(idx===undefined||idx===null) idx=activePanel;
+  if(!_isExpandableGridLayout(currentLayout)) return;
+  togglePanelExpand(idx);
+  updateSidebarPanelControls();
 }
 
 // ============================================================================
@@ -1769,6 +1905,101 @@ function daysAgo(a, b) { return Math.round((a - b) / 86400000); }
 // LAYOUT MANAGEMENT
 // ============================================================================
 var TF_LABELS = {'1min':'1m','3min':'3m','5min':'5m','15min':'15m','30min':'30m','1hour':'1H','4hour':'4H','1day':'1D'};
+function _isExpandableGridLayout(layout) {
+  return layout === '4';
+}
+function _syncExpandedPanelUI() {
+  var grid = document.getElementById('panels-grid');
+  if (!grid) return;
+  grid.classList.remove('panel-expanded');
+  grid.removeAttribute('data-expanded-idx');
+  var panelEls = grid.querySelectorAll('.chart-panel');
+  panelEls.forEach(function(el) { el.classList.remove('expanded-panel'); });
+  if (expandedPanelIdx === null) return;
+  if (!_isExpandableGridLayout(currentLayout) || expandedPanelIdx < 0 || expandedPanelIdx >= panels.length) {
+    expandedPanelIdx = null;
+    expandedPanelViewState = null;
+    return;
+  }
+  grid.classList.add('panel-expanded');
+  grid.setAttribute('data-expanded-idx', String(expandedPanelIdx));
+  panelEls.forEach(function(el) {
+    var idx = parseInt(el.getAttribute('data-idx') || '-1', 10);
+    if (idx === expandedPanelIdx) el.classList.add('expanded-panel');
+  });
+}
+function _refreshPanelHeaders() {
+  for (var i = 0; i < panels.length; i++) updatePanelHeader(i);
+}
+function _resizePanelCharts(panelIdxs) {
+  if (!panelIdxs || !panelIdxs.length) return;
+  for (var i = 0; i < panelIdxs.length; i++) {
+    var idx = panelIdxs[i];
+    var p = panels[idx];
+    if (!p || !p.el) continue;
+    var main = p.el.querySelector('.panel-chart');
+    if (p.chart && main) p.chart.applyOptions({width: main.clientWidth, height: main.clientHeight});
+    if (p.oscCharts && p.oscCharts.length) {
+      p.oscCharts.forEach(function(oc) {
+        if (oc && oc.chart && oc.panelEl) oc.chart.applyOptions({width: oc.panelEl.clientWidth, height: oc.panelEl.clientHeight});
+      });
+    }
+  }
+}
+function restoreExpandedPanel() {
+  if (expandedPanelIdx === null) return;
+  var priorIdx = expandedPanelIdx;
+  var priorView = expandedPanelViewState;
+  expandedPanelIdx = null;
+  expandedPanelViewState = null;
+  _syncExpandedPanelUI();
+  _refreshPanelHeaders();
+  requestAnimationFrame(function() {
+    var idxs = [];
+    for (var i = 0; i < panels.length; i++) idxs.push(i);
+    if (idxs.indexOf(priorIdx) < 0) idxs.push(priorIdx);
+    _resizePanelCharts(idxs);
+    var pp = panels[priorIdx];
+    if (pp && pp.chart && priorView && priorView.idx === priorIdx) {
+      try {
+        if (priorView.logical) pp.chart.timeScale().setVisibleLogicalRange(priorView.logical);
+        else if (priorView.range) pp.chart.timeScale().setVisibleRange(priorView.range);
+      } catch(e) {}
+    }
+    updateSidebarPanelControls();
+  });
+}
+function togglePanelExpand(idx) {
+  if (!_isExpandableGridLayout(currentLayout)) return;
+  if (expandedPanelIdx === idx) {
+    restoreExpandedPanel();
+    return;
+  }
+  var p = panels[idx];
+  expandedPanelViewState = null;
+  if (p && p.chart) {
+    expandedPanelViewState = {
+      idx: idx,
+      logical: p.chart.timeScale().getVisibleLogicalRange(),
+      range: p.chart.timeScale().getVisibleRange()
+    };
+  }
+  expandedPanelIdx = idx;
+  _syncExpandedPanelUI();
+  if (activePanel !== idx) setActivePanel(idx);
+  _refreshPanelHeaders();
+  requestAnimationFrame(function() {
+    _resizePanelCharts([idx]);
+    var ep = panels[idx];
+    if (ep && ep.chart) {
+      try { ep.chart.timeScale().fitContent(); } catch(e) {}
+      if (ep.oscCharts && ep.oscCharts.length) {
+        ep.oscCharts.forEach(function(oc){ if (oc && oc.chart) { try { oc.chart.timeScale().fitContent(); } catch(e) {} } });
+      }
+    }
+    updateSidebarPanelControls();
+  });
+}
 function getPanelCount(layout) {
   if (layout === '1') return 1;
   if (layout === '2h' || layout === '2v') return 2;
@@ -1793,6 +2024,7 @@ function makePanel(idx) {
   };
 }
 function setLayout(layout) {
+  if (!_isExpandableGridLayout(layout)) { expandedPanelIdx = null; expandedPanelViewState = null; }
   currentLayout = layout;
   var count = getPanelCount(layout);
   document.getElementById('layout-select').value = layout;
@@ -1807,8 +2039,10 @@ function setLayout(layout) {
   createPanelElements(count);
   var grid = document.getElementById('panels-grid');
   grid.className = 'layout-' + layout;
+  _syncExpandedPanelUI();
   for (var i = 0; i < count; i++) { if (panels[i].symbol) loadPanelData(i); }
   document.getElementById('tf-select').value = panels[activePanel].timeframe;
+  updateSidebarPanelControls();
   saveLayout();
   renderNamedLayoutTabs();
 }
@@ -1971,6 +2205,8 @@ function switchLayout(id) {
   activePanel = 0;
   // Load target layout
   currentLayout = ly.layout || '1';
+  expandedPanelIdx = null;
+  expandedPanelViewState = null;
   var count = getPanelCount(currentLayout);
   for (var i = 0; i < count; i++) {
     var p = makePanel(i);
@@ -1988,9 +2224,11 @@ function switchLayout(id) {
     }
   }
   document.getElementById('panels-grid').className = 'layout-' + currentLayout;
+  _syncExpandedPanelUI();
   document.getElementById('layout-select').value = currentLayout;
   document.querySelectorAll('.layout-tab').forEach(function(t){ t.classList.toggle('active', t.getAttribute('data-layout')===currentLayout); });
   document.getElementById('tf-select').value = panels[activePanel].timeframe;
+  updateSidebarPanelControls();
   for (var i = 0; i < count; i++) { if (panels[i].symbol) loadPanelData(i); }
   saveLayouts();
   renderNamedLayoutTabs();
@@ -2114,6 +2352,7 @@ function createPanelElements(count) {
     grid.appendChild(div);
     p.el = div;
   }
+  _syncExpandedPanelUI();
 }
 function goToNow(idx) {
   var p = panels[idx];
@@ -2133,6 +2372,7 @@ function setActivePanel(idx) {
   document.querySelectorAll('.chart-panel').forEach(function(el, i) { el.classList.toggle('active', i === idx); });
   if (panels[idx]) document.getElementById('tf-select').value = panels[idx].timeframe;
   renderSymbolList(document.getElementById('sym-search').value);
+  updateSidebarPanelControls();
 }
 function updatePanelHeader(idx) {
   var p = panels[idx];
@@ -2358,7 +2598,7 @@ function renderPanelChart(idx) {
   var container = p.el.querySelector('.panel-chart');
   container.innerHTML = '<div class="panel-loading"><div class="spinner"></div></div>';
   var bars = filterBarsBySession(p.bars, p.session, p.timeframe);
-  if (!bars || !bars.length) { container.innerHTML = '<div class="panel-empty">No data for session</div>'; return; }
+  if (!bars || !bars.length) { container.innerHTML = '<div class="panel-empty">No data for session</div>'; renderPanelSideControls(idx); updateSidebarPanelControls(); return; }
   p.filteredBars = bars; // keep reference for OHLCV lookups
   var w = container.clientWidth || 400, h = container.clientHeight || 300;
   if (typeof LightweightCharts === 'undefined') return;
@@ -2641,6 +2881,8 @@ function renderPanelChart(idx) {
       indPanel.setAttribute('data-panel', pidx);
       container.appendChild(indPanel);
     })(idx);
+    renderPanelSideControls(idx);
+    updateSidebarPanelControls();
     // Drawing tools (price mode only — drawings use price coordinates)
     if(!isPerf && typeof DrawingManager!=='undefined'){
       (function(pidx){
@@ -3063,6 +3305,11 @@ function _fbAutoSync() {
 // ============================================================================
 document.addEventListener('keydown', function(e) {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+  if (e.key === 'Escape' && expandedPanelIdx !== null) {
+    e.preventDefault();
+    restoreExpandedPanel();
+    return;
+  }
   if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
     e.preventDefault();
     var visItems = document.querySelectorAll('.sym-item');
@@ -3135,6 +3382,7 @@ function _doInit() {
   }
   document.getElementById('panels-grid').className = 'layout-' + currentLayout;
   document.getElementById('tf-select').value = panels[0].timeframe;
+  updateSidebarPanelControls();
   renderNamedLayoutTabs();
 
   // One-time migration: move old orb_drawings_SYMBOL keys to layout-scoped keys
@@ -3243,3 +3491,4 @@ function _doInit() {
 </script>
 </body>
 </html>
+
