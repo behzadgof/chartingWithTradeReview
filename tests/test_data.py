@@ -585,7 +585,7 @@ class TestFetchQuotes:
         assert result["AAPL"]["source"] == "cache"
         assert result["AAPL"]["price"] == 101.0
 
-    def test_refresh_disabled_missing_cache_skips_provider(self, tmp_path):
+    def test_refresh_disabled_missing_cache_fetches_provider(self, tmp_path):
         provider = MagicMock()
         provider.get_bars.return_value = [
             {
@@ -609,8 +609,9 @@ class TestFetchQuotes:
         manager.providers = [provider]
 
         result = fetch_quotes(["ZZZZ"], cache_dir=tmp_path, manager=manager, refresh_stale=False)
-        assert result == {}
-        assert not provider.get_bars.called
+        assert "ZZZZ" in result
+        assert result["ZZZZ"]["source"] == "provider"
+        assert provider.get_bars.called
 
 
 # ---------------------------------------------------------------------------

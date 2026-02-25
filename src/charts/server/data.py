@@ -700,9 +700,6 @@ def fetch_quotes(
                     cache_last_date = df["timestamp"].max().date()
                     bars = dataframe_to_bars(df)
             cache_is_stale = cache_last_date is None or cache_last_date < stale_cutoff
-            if (not refresh_stale) and (not bars or len(bars) < 2):
-                return sym, None
-
             if manager and ((not bars or len(bars) < 2) or (refresh_stale and cache_is_stale)):
                 today = date.today().isoformat()
                 start = (date.today() - timedelta(days=10)).isoformat()
