@@ -86,9 +86,11 @@ class ChartServer:
         server.state_dir = self.state_dir
 
         url = f"http://localhost:{self.port}"
-        mode = "trades" if self.trades else "market"
+        views = ["market"]
+        if self.trades:
+            views.append("trades")
 
-        print(f"Chart Server ({mode} mode)")
+        print(f"Chart Server (views: {', '.join(views)})")
         if self.cache_dir:
             print(f"  Cache:  {self.cache_dir}")
         if self.state_dir:
