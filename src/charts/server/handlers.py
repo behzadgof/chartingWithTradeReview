@@ -1,7 +1,7 @@
 """HTTP request handlers for the chart server.
 
 Routes:
-    GET  /                   → redirect to /market or /trades
+    GET  /                   → app.html (tabbed wrapper)
     GET  /market             → market.html (asset chart viewer)
     GET  /trades             → trades.html (trade review)
     GET  /api/symbols        → JSON symbol list
@@ -99,7 +99,7 @@ class ChartRequestHandler(http.server.BaseHTTPRequestHandler):
         params = urllib.parse.parse_qs(parsed.query)
 
         if path in ("/", "/index.html"):
-            self._redirect()
+            self._serve_app()
         elif path == "/market":
             self._serve_market()
         elif path == "/trades":
@@ -137,12 +137,14 @@ class ChartRequestHandler(http.server.BaseHTTPRequestHandler):
         """Access server-level configuration."""
         return getattr(self.server, key, None)
 
-    def _redirect(self) -> None:
-        trades = self._cfg("trades")
-        target = "/trades" if trades else "/market"
-        self.send_response(302)
-        self.send_header("Location", target)
-        self.end_headers()
+    def _serve_app(self) -> None:
+        """Serve the tabbed wrapper page (bypasses _load_template)."""
+        raw = (_TEMPLATES_DIR / "app.html").read_text(encoding="utf-8")
+        html = raw.replace(
+            "{{HAS_TRADES}}",
+            "true" if self._cfg("trades") else "false",
+        )
+        self._send_html(html)
 
     def _send_json(self, data: object, status: int = 200) -> None:
         body = json.dumps(data).encode("utf-8")
