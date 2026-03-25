@@ -828,12 +828,15 @@ def fetch_live_quotes(symbols: list[str], manager: Any = None) -> dict[str, dict
                     tickers = [PolygonProvider._polygon_ticker(s) for s in crypto_syms[i : i + chunk_size]]
                     batches.append(("global/markets/crypto", tickers))
                 for locale_market, chunk in batches:
-                    resp = session.get(
-                        f"{base_url}/v2/snapshot/locale/{locale_market}/tickers",
-                        params={"apiKey": api_key, "tickers": ",".join(chunk)},
-                    )
-                    if hasattr(resp, "raise_for_status"):
-                        resp.raise_for_status()
+                    try:
+                        resp = session.get(
+                            f"{base_url}/v2/snapshot/locale/{locale_market}/tickers",
+                            params={"apiKey": api_key, "tickers": ",".join(chunk)},
+                        )
+                        if hasattr(resp, "raise_for_status"):
+                            resp.raise_for_status()
+                    except Exception:
+                        continue  # skip this batch (e.g. 403 for crypto on free tier)
                     payload = resp.json() if hasattr(resp, "json") else {}
                     tickers = payload.get("tickers", []) if isinstance(payload, dict) else []
                     for row in tickers:
@@ -866,13 +869,13 @@ def fetch_live_quotes(symbols: list[str], manager: Any = None) -> dict[str, dict
                             "changePct": float(change_pct) if change_pct is not None else None,
                             "source": "live",
                         }
-                if out:
-                    return out
             except Exception:
                 pass
 
-    # Generic provider fallback: synthesize a quote from Quote model objects.
-    out: dict[str, dict[str, Any]] = {}
+    # Generic provider fallback for symbols not covered by batch snapshot.
+    missing = [s for s in normalized if s not in out]
+    if not missing:
+        return out
 
     def _price_from_quote_obj(q: Any) -> float | None:
         last = getattr(q, "last_price", None)
@@ -893,7 +896,7 @@ def fetch_live_quotes(symbols: list[str], manager: Any = None) -> dict[str, dict
 
     if hasattr(manager, "get_quotes"):
         try:
-            quotes = manager.get_quotes(normalized)
+            quotes = manager.get_quotes(missing)
             for q in quotes:
                 sym = str(getattr(q, "symbol", "")).upper().strip()
                 price = _price_from_quote_obj(q)
@@ -907,14 +910,44 @@ def fetch_live_quotes(symbols: list[str], manager: Any = None) -> dict[str, dict
         except Exception:
             pass
 
-    if not out and hasattr(manager, "get_quote"):
-        for sym in normalized:
+    still_missing = [s for s in missing if s not in out]
+    if still_missing and hasattr(manager, "get_quote"):
+        for sym in still_missing:
             try:
                 q = manager.get_quote(sym)
                 price = _price_from_quote_obj(q)
                 if price is not None:
                     out[sym] = {
                         "price": float(price),
+                        "change": None,
+                        "changePct": None,
+                        "source": "live",
+                    }
+            except Exception:
+                continue
+
+    # Bar-derived fallback for symbols still missing (e.g. crypto on free tier).
+    bar_missing = [s for s in missing if s not in out]
+    if bar_missing and hasattr(manager, "get_bars"):
+        from datetime import date, timedelta
+        end = date.today()
+        start = end - timedelta(days=3)
+        for sym in bar_missing:
+            try:
+                bars = manager.get_bars(sym, start, end, timeframe="1day")
+                if len(bars) >= 2:
+                    prev = bars[-2].close
+                    cur = bars[-1].close
+                    change = cur - prev
+                    out[sym] = {
+                        "price": float(cur),
+                        "change": float(change),
+                        "changePct": float(change / prev * 100) if prev else 0,
+                        "source": "live",
+                    }
+                elif bars:
+                    out[sym] = {
+                        "price": float(bars[-1].close),
                         "change": None,
                         "changePct": None,
                         "source": "live",
