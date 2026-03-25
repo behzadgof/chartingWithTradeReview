@@ -815,11 +815,21 @@ def fetch_live_quotes(symbols: list[str], manager: Any = None) -> dict[str, dict
         if session is not None and base_url and api_key:
             try:
                 out: dict[str, dict[str, Any]] = {}
+                # Split symbols by asset type for correct Polygon endpoints.
+                from marketdata.config import AssetType, detect_asset_type
+                from marketdata.providers.polygon import PolygonProvider
+                stock_syms = [s for s in normalized if detect_asset_type(s) != AssetType.CRYPTO]
+                crypto_syms = [s for s in normalized if detect_asset_type(s) == AssetType.CRYPTO]
+                batches: list[tuple[str, list[str]]] = []
                 chunk_size = 200
-                for i in range(0, len(normalized), chunk_size):
-                    chunk = normalized[i : i + chunk_size]
+                for i in range(0, len(stock_syms), chunk_size):
+                    batches.append(("us/markets/stocks", stock_syms[i : i + chunk_size]))
+                for i in range(0, len(crypto_syms), chunk_size):
+                    tickers = [PolygonProvider._polygon_ticker(s) for s in crypto_syms[i : i + chunk_size]]
+                    batches.append(("global/markets/crypto", tickers))
+                for locale_market, chunk in batches:
                     resp = session.get(
-                        f"{base_url}/v2/snapshot/locale/us/markets/stocks/tickers",
+                        f"{base_url}/v2/snapshot/locale/{locale_market}/tickers",
                         params={"apiKey": api_key, "tickers": ",".join(chunk)},
                     )
                     if hasattr(resp, "raise_for_status"):
@@ -827,9 +837,14 @@ def fetch_live_quotes(symbols: list[str], manager: Any = None) -> dict[str, dict
                     payload = resp.json() if hasattr(resp, "json") else {}
                     tickers = payload.get("tickers", []) if isinstance(payload, dict) else []
                     for row in tickers:
-                        sym = str(row.get("ticker", "")).upper().strip()
-                        if not sym:
+                        raw_sym = str(row.get("ticker", "")).upper().strip()
+                        if not raw_sym:
                             continue
+                        # Reverse Polygon ticker to user-facing symbol.
+                        if raw_sym.startswith("X:") and raw_sym.endswith("USD"):
+                            sym = raw_sym[2:-3] + "/USD"  # X:BTCUSD → BTC/USD
+                        else:
+                            sym = raw_sym
                         last_trade = row.get("lastTrade") or {}
                         day = row.get("day") or {}
                         price = last_trade.get("p")

@@ -31,6 +31,19 @@ html, body { height: 100%; overflow: hidden; background: #0d1117; }
 .tab.active { color: #58a6ff; border-bottom-color: #58a6ff; }
 .tab.disabled { color: #484f58; cursor: not-allowed; }
 
+/* Data source badge */
+.data-badge {
+  margin-left: auto;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+}
+.data-badge.live { color: #3fb950; }
+.data-badge.delayed { color: #f0883e; }
+.data-badge.closed { color: #8b949e; }
+
 /* Iframe container */
 .frame-container {
   position: absolute;
@@ -72,6 +85,7 @@ html, body { height: 100%; overflow: hidden; background: #0d1117; }
 <div class="tab-bar">
   <div class="tab active" id="tab-market" onclick="switchTab('market')" oncontextmenu="showCtxMenu(event, 'market')">Market</div>
   <div class="tab" id="tab-trades" onclick="switchTab('trades')" oncontextmenu="showCtxMenu(event, 'trades')">Trades</div>
+  <span class="data-badge closed" id="data-badge">EOD</span>
 </div>
 
 <div class="frame-container">
@@ -147,6 +161,19 @@ fetch('/api/state?key=default_tab')
     // else keep default (market)
   })
   .catch(function() {});
+
+// Listen for quote status updates from market iframe
+window.addEventListener('message', function(e) {
+  if (e.data && e.data.type === 'quoteStatus') {
+    var badge = document.getElementById('data-badge');
+    if (!badge) return;
+    var src = e.data.source || 'closed';
+    badge.className = 'data-badge ' + src;
+    if (src === 'live') badge.textContent = 'LIVE';
+    else if (src === 'delayed') badge.textContent = 'DELAYED';
+    else badge.textContent = 'EOD';
+  }
+});
 </script>
 </body>
 </html>

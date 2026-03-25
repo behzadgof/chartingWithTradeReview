@@ -1839,6 +1839,10 @@ function updateQuoteStatus() {
   if (quoteSource === 'live') el.textContent = 'LIVE';
   else if (quoteSource === 'delayed') el.textContent = 'DELAYED';
   else el.textContent = 'EOD';
+  // Notify parent wrapper (app.html) of quote status change
+  if (window.parent !== window) {
+    window.parent.postMessage({ type: 'quoteStatus', source: quoteSource }, '*');
+  }
 }
 function startQuotePolling() {
   if (quotePollingTimer) clearInterval(quotePollingTimer);
