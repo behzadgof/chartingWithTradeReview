@@ -46,6 +46,26 @@ def _build_app() -> FastAPI:
     app.include_router(firebase_router)
     app.include_router(ws_router)
 
+    @app.on_event("startup")
+    async def _start_streaming() -> None:
+        """Connect Binance streaming on server startup."""
+        try:
+            from marketdata.streaming.binance import BinanceStreamingProvider
+            from marketdata.streaming.manager import StreamManager
+
+            provider = BinanceStreamingProvider()
+            sm = StreamManager([provider])
+            await sm.connect()
+            server_state.stream_manager = sm
+            print("  Streaming: Binance WebSocket connected")
+        except Exception as exc:
+            print(f"  Streaming: unavailable ({exc})")
+
+    @app.on_event("shutdown")
+    async def _stop_streaming() -> None:
+        if server_state.stream_manager:
+            await server_state.stream_manager.disconnect()
+
     return app
 
 

@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
+from datetime import datetime
+
 from fastapi import APIRouter
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
@@ -21,6 +24,33 @@ async def ws_stream(websocket: WebSocket) -> None:
         "type": "status",
         "streaming": sm is not None and sm.is_connected,
     })
+
+    # Queue for pushing quotes to this client
+    quote_queue: asyncio.Queue = asyncio.Queue()
+
+    def _on_quote(symbol: str, price: float, size: float, ts: datetime) -> None:
+        quote_queue.put_nowait({
+            "type": "quote",
+            "symbol": symbol,
+            "price": price,
+            "size": size,
+            "timestamp": ts.isoformat(),
+        })
+
+    # Register callback if streaming is active
+    if sm:
+        sm.on_quote(_on_quote)
+
+    async def _push_quotes() -> None:
+        """Forward queued quotes to the WebSocket client."""
+        try:
+            while True:
+                msg = await quote_queue.get()
+                await websocket.send_json(msg)
+        except (WebSocketDisconnect, Exception):
+            pass
+
+    push_task = asyncio.create_task(_push_quotes())
 
     try:
         while True:
@@ -47,3 +77,5 @@ async def ws_stream(websocket: WebSocket) -> None:
 
     except WebSocketDisconnect:
         pass
+    finally:
+        push_task.cancel()
