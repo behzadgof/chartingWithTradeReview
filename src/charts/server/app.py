@@ -38,11 +38,13 @@ def _build_app() -> FastAPI:
     from charts.server.routes.api import router as api_router
     from charts.server.routes.state import router as state_router
     from charts.server.routes.firebase import router as firebase_router
+    from charts.server.routes.ws import router as ws_router
 
     app.include_router(pages_router)
     app.include_router(api_router)
     app.include_router(state_router)
     app.include_router(firebase_router)
+    app.include_router(ws_router)
 
     return app
 
