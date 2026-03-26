@@ -462,6 +462,94 @@ def bars_to_json(df: pd.DataFrame) -> list[dict[str, Any]]:
     return bars
 
 
+def _coinbase_backfill_if_crypto(symbol: str, df: "pd.DataFrame") -> "pd.DataFrame":
+    """If symbol is crypto and df has a gap to now, backfill from Coinbase."""
+    try:
+        from marketdata.config import AssetType, detect_asset_type
+        if detect_asset_type(symbol) != AssetType.CRYPTO or df.empty:
+            return df
+        last_ts = df["timestamp"].max()
+        # Normalize to UTC-aware for comparison
+        if last_ts.tzinfo is None:
+            last_ts = last_ts.tz_localize("UTC")
+        now = pd.Timestamp.now(tz="UTC")
+        gap_minutes = (now - last_ts).total_seconds() / 60
+        if gap_minutes > 10:
+            coinbase_df = _fetch_coinbase_candles(symbol, last_ts, now)
+            if not coinbase_df.empty:
+                # Match tz-awareness of original df
+                if df["timestamp"].dt.tz is None:
+                    coinbase_df["timestamp"] = coinbase_df["timestamp"].dt.tz_localize(None)
+                df = pd.concat([df, coinbase_df], ignore_index=True)
+                df = df.sort_values("timestamp").drop_duplicates(subset=["timestamp"])
+    except Exception:
+        pass
+    return df
+
+
+def _fetch_coinbase_candles(
+    symbol: str,
+    start_ts: "pd.Timestamp",
+    end_ts: "pd.Timestamp",
+) -> "pd.DataFrame":
+    """Fetch recent candles from Coinbase Exchange REST API (free, no key).
+
+    Returns a DataFrame with columns: timestamp, open, high, low, close, volume.
+    Coinbase returns max 300 candles per request, so we use 5-min granularity
+    (covers ~25 hours per request).
+    """
+    import os
+    os.environ.pop("CURL_CA_BUNDLE", None)
+    os.environ.pop("REQUESTS_CA_BUNDLE", None)
+    import requests as _req
+
+    upper = symbol.upper()
+    product_id = upper.replace("/", "-") if "/" in upper else f"{upper}-USD"
+
+    all_rows: list[dict] = []
+    granularity = 300  # 5 minutes
+    chunk_start = start_ts
+    while chunk_start < end_ts:
+        chunk_end = min(chunk_start + pd.Timedelta(hours=24), end_ts)
+        try:
+            resp = _req.get(
+                f"https://api.exchange.coinbase.com/products/{product_id}/candles",
+                params={
+                    "granularity": granularity,
+                    "start": chunk_start.isoformat(),
+                    "end": chunk_end.isoformat(),
+                },
+                timeout=10,
+            )
+            if resp.status_code != 200:
+                break
+            candles = resp.json()
+            if not isinstance(candles, list) or not candles:
+                break
+            for c in candles:
+                # Coinbase format: [timestamp, low, high, open, close, volume]
+                all_rows.append({
+                    "timestamp": pd.Timestamp.fromtimestamp(c[0], tz="UTC"),
+                    "open": float(c[3]),
+                    "high": float(c[2]),
+                    "low": float(c[1]),
+                    "close": float(c[4]),
+                    "volume": float(c[5]),
+                })
+        except Exception:
+            break
+        chunk_start = chunk_end
+
+    if not all_rows:
+        return pd.DataFrame()
+
+    df = pd.DataFrame(all_rows)
+    df = df.sort_values("timestamp").drop_duplicates(subset=["timestamp"])
+    # Filter to only bars after start_ts to avoid overlap
+    df = df[df["timestamp"] > start_ts]
+    return df
+
+
 def fetch_bars(
     symbol: str,
     start: str,
@@ -482,6 +570,8 @@ def fetch_bars(
         if df_native.empty:
             df_native = load_bars_from_manager(symbol, start, end, manager, timeframe=tf)
         if not df_native.empty:
+            # Coinbase backfill for crypto gap in fast path
+            df_native = _coinbase_backfill_if_crypto(symbol, df_native)
             df_native = _filter_trading_days(df_native)
             if session == "regular" and not tf.endswith("day"):
                 df_native = _filter_regular_hours(df_native)
@@ -611,6 +701,21 @@ def fetch_bars(
             if not fresh_tail.empty:
                 df = pd.concat([df, fresh_tail], ignore_index=True)
                 df = df.sort_values("timestamp").drop_duplicates(subset=["timestamp"])
+    # Coinbase backfill for crypto: fill gap between last bar and now.
+    if not df.empty:
+        df = _coinbase_backfill_if_crypto(symbol, df)
+    else:
+        try:
+            from marketdata.config import AssetType, detect_asset_type
+            if detect_asset_type(symbol) == AssetType.CRYPTO:
+                now = pd.Timestamp.now(tz="UTC")
+                start_ts = pd.Timestamp(start_date, tz="UTC")
+                coinbase_df = _fetch_coinbase_candles(symbol, start_ts, now)
+                if not coinbase_df.empty:
+                    df = coinbase_df
+        except Exception:
+            pass
+
     if df.empty:
         return []
 
