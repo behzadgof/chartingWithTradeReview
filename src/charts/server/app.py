@@ -48,18 +48,26 @@ def _build_app() -> FastAPI:
 
     @app.on_event("startup")
     async def _start_streaming() -> None:
-        """Connect Binance streaming on server startup."""
-        try:
-            from marketdata.streaming.binance import BinanceStreamingProvider
-            from marketdata.streaming.manager import StreamManager
+        """Connect crypto streaming on server startup (Coinbase preferred)."""
+        from marketdata.streaming.manager import StreamManager
 
-            provider = BinanceStreamingProvider()
-            sm = StreamManager([provider])
-            await sm.connect()
-            server_state.stream_manager = sm
-            print("  Streaming: Binance WebSocket connected")
-        except Exception as exc:
-            print(f"  Streaming: unavailable ({exc})")
+        providers_to_try = [
+            ("Coinbase", "marketdata.streaming.coinbase", "CoinbaseStreamingProvider"),
+            ("Binance", "marketdata.streaming.binance", "BinanceStreamingProvider"),
+        ]
+        for name, module_path, class_name in providers_to_try:
+            try:
+                import importlib
+                mod = importlib.import_module(module_path)
+                provider = getattr(mod, class_name)()
+                sm = StreamManager([provider])
+                await sm.connect()
+                server_state.stream_manager = sm
+                print(f"  Streaming: {name} WebSocket connected")
+                return
+            except Exception as exc:
+                print(f"  Streaming: {name} unavailable ({exc})")
+        print("  Streaming: no provider available")
 
     @app.on_event("shutdown")
     async def _stop_streaming() -> None:
