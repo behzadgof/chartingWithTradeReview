@@ -3545,6 +3545,8 @@ function _doInit() {
           quoteCache[sym].changePct = (quoteCache[sym].change / prev.prevClose) * 100;
         }
         renderSymbolList();
+        // Update chart if any panel shows this symbol
+        _wsUpdateChart(sym, msg.price, msg.timestamp);
       }
     };
 
@@ -3565,6 +3567,35 @@ function _doInit() {
     });
     if (syms.length > 0) {
       _ws.send(JSON.stringify({ subscribe: syms, channels: ['quotes'] }));
+    }
+  }
+
+  function _wsUpdateChart(sym, price, isoTimestamp) {
+    // Update the last bar on any panel showing this symbol
+    for (var i = 0; i < panels.length; i++) {
+      var p = panels[i];
+      if (!p || p.symbol !== sym || !p.candleSeries || !p.bars || !p.bars.length) continue;
+
+      var lastBar = p.bars[p.bars.length - 1];
+      var ct = p.chartType || 'candlestick';
+
+      // Update the last bar's close (and high/low if needed)
+      lastBar.close = price;
+      if (price > lastBar.high) lastBar.high = price;
+      if (price < lastBar.low) lastBar.low = price;
+
+      if (ct === 'candlestick' || ct === 'bar') {
+        p.candleSeries.update({
+          time: lastBar.time,
+          open: lastBar.open,
+          high: lastBar.high,
+          low: lastBar.low,
+          close: price
+        });
+      } else {
+        // line, area, baseline — use {time, value}
+        p.candleSeries.update({ time: lastBar.time, value: price });
+      }
     }
   }
 
