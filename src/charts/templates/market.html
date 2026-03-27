@@ -1594,6 +1594,8 @@ function addSymbolToWL(sym) {
   renderSymbolList(); saveWatchlists();
   // Fetch quote from server
   fetchQuoteFor(sym);
+  // Subscribe via WebSocket if crypto
+  if (sym.indexOf('/') !== -1 && window._wsSubscribeWatchlist) window._wsSubscribeWatchlist();
 }
 function deleteSymFromWL(sym, gIdx) {
   var wl = getActiveWL(); if (!wl) return;
@@ -3491,6 +3493,117 @@ function _doInit() {
       }
       _doInit();
     });
+})();
+
+// ============================================================================
+// WEBSOCKET STREAMING (real-time crypto via Binance)
+// ============================================================================
+(function() {
+  var _ws = null;
+  var _wsRetryDelay = 1000;
+  var _wsMaxRetry = 30000;
+  var _wsSubscribed = [];
+
+  function wsConnect() {
+    var proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    var url = proto + '//' + location.host + '/ws/stream';
+    try { _ws = new WebSocket(url); } catch(e) { return; }
+
+    _ws.onopen = function() {
+      _wsRetryDelay = 1000;
+    };
+
+    _ws.onmessage = function(evt) {
+      var msg;
+      try { msg = JSON.parse(evt.data); } catch(e) { return; }
+
+      if (msg.type === 'status' && msg.streaming) {
+        quoteSource = 'live';
+        updateQuoteStatus();
+        // Subscribe to current watchlist crypto symbols
+        wsSubscribeWatchlist();
+      }
+
+      if (msg.type === 'subscribed') {
+        _wsSubscribed = msg.symbols || [];
+      }
+
+      if (msg.type === 'quote') {
+        var sym = msg.symbol;
+        var prev = quoteCache[sym] || {};
+        var prevPrice = prev.price || msg.price;
+        quoteCache[sym] = {
+          price: msg.price,
+          change: msg.price - prevPrice,
+          changePct: prevPrice ? ((msg.price - prevPrice) / prevPrice) * 100 : 0,
+          prevClose: prev.prevClose || prevPrice,
+          source: 'live'
+        };
+        // If we have a stored prevClose, use it for proper change calc
+        if (prev.prevClose) {
+          quoteCache[sym].change = msg.price - prev.prevClose;
+          quoteCache[sym].changePct = (quoteCache[sym].change / prev.prevClose) * 100;
+        }
+        renderSymbolList();
+        // Update chart if any panel shows this symbol
+        _wsUpdateChart(sym, msg.price, msg.timestamp);
+      }
+    };
+
+    _ws.onclose = function() {
+      _ws = null;
+      // Reconnect with exponential backoff
+      setTimeout(wsConnect, _wsRetryDelay);
+      _wsRetryDelay = Math.min(_wsRetryDelay * 2, _wsMaxRetry);
+    };
+
+    _ws.onerror = function() {};
+  }
+
+  function wsSubscribeWatchlist() {
+    if (!_ws || _ws.readyState !== 1) return;
+    var syms = _getQuoteSymbols().filter(function(s) {
+      return s.indexOf('/') !== -1; // crypto symbols have a slash (BTC/USD)
+    });
+    if (syms.length > 0) {
+      _ws.send(JSON.stringify({ subscribe: syms, channels: ['quotes'] }));
+    }
+  }
+
+  function _wsUpdateChart(sym, price, isoTimestamp) {
+    // Update the last bar on any panel showing this symbol
+    for (var i = 0; i < panels.length; i++) {
+      var p = panels[i];
+      if (!p || p.symbol !== sym || !p.candleSeries || !p.bars || !p.bars.length) continue;
+
+      var lastBar = p.bars[p.bars.length - 1];
+      var ct = p.chartType || 'candlestick';
+
+      // Update the last bar's close (and high/low if needed)
+      lastBar.close = price;
+      if (price > lastBar.high) lastBar.high = price;
+      if (price < lastBar.low) lastBar.low = price;
+
+      if (ct === 'candlestick' || ct === 'bar') {
+        p.candleSeries.update({
+          time: lastBar.time,
+          open: lastBar.open,
+          high: lastBar.high,
+          low: lastBar.low,
+          close: price
+        });
+      } else {
+        // line, area, baseline — use {time, value}
+        p.candleSeries.update({ time: lastBar.time, value: price });
+      }
+    }
+  }
+
+  // Expose for use when watchlist changes
+  window._wsSubscribeWatchlist = wsSubscribeWatchlist;
+
+  // Start WebSocket connection after a short delay (let REST quotes load first)
+  setTimeout(wsConnect, 2000);
 })();
 </script>
 </body>
